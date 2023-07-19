@@ -1,16 +1,12 @@
 from biASE import General_Bias_Calculator
+
+from ase import units
 import numpy as np
-from ase.md.langevin import Langevin
 from ase.calculators.mixing import LinearCombinationCalculator
 import jax.numpy as jnp
-from jax import jit
-from jax import grad ,jacfwd,jacrev
 from ase.md.md import MolecularDynamics
 from ase.parallel import world, DummyMPI
 from ase import units
-
-
-"""Langevin dynamics class.""" #copyed from the v3.22.1 not the master!
 
 
 class Metadynamics(MolecularDynamics):
@@ -258,7 +254,7 @@ class Metadynamics(MolecularDynamics):
         std_dev = self.std_dev
 
         # Evaluate the Gaussian for all means at once using numpy broadcasting
-        gaussian_vals = jnp.exp(-0.5*((x - mean_cvs[:, jnp.newaxis])**2/(0.5*std_dev**2))) 
+        gaussian_vals = jnp.exp(-0.5*((x - mean_cvs[:, jnp.newaxis])**2/(std_dev**2))) 
         
         # Sum over all means and return the result
         #print(jnp.sum(gaussian_vals, axis=0)[0])
@@ -281,8 +277,8 @@ class Metadynamics(MolecularDynamics):
         
         #print(mean_cvs[:, 0])
         # Evaluate the Gaussian for all means at once using numpy broadcasting
-        gaussian_vals = jnp.exp(-0.5*((x - mean_cvs[:, 0])**2/(0.5*std_dev**2)) \
-                                                      - 0.5*((y - mean_cvs[:, 1])**2/(0.5*std_dev**2)))
+        gaussian_vals = jnp.exp(-0.5*((x - mean_cvs[:, 0])**2/(std_dev**2)) \
+                                                      - 0.5*((y - mean_cvs[:, 1])**2/(std_dev**2)))
 
         # Sum over all means and return the result
         #print(jnp.sum(gaussian_vals, axis=0)[0])
@@ -294,6 +290,11 @@ class Metadynamics(MolecularDynamics):
     
     def return_biased_potential(self):
         return self.meta_dyn_calc
+
+
+
+"""Langevin dynamics class.""" #copyed from the v3.22.1 not the master!
+
 
 
 class WT_Metadynamics(MolecularDynamics):
@@ -540,7 +541,7 @@ class WT_Metadynamics(MolecularDynamics):
                             if self.len_cvs ==1:
                                 file.write(f'\t\t\t\t \t{self.nsteps*self.timestep}\t{self.current_cvs[0]}\t{self.std_dev}\t{self.bias_height*self.regulation_factor[-1][0]}\t{self.bias_factor}\n')
                             else:
-                                file.write(f'\t\t\t\t \t{self.nsteps*self.timestep}\t{self.current_cvs[0]}\t{self.current_cvs[1]}\t{self.std_dev}\t{self.std_dev}\t{self.bias_height*self.regulation_factor[-1][0]}\t{self.bias_factor}\n')
+                                file.write(f'\t\t\t\t \t{self.nsteps*self.timestep}\t{self.current_cvs[0]}\t{self.current_cvs[1]}\t{self.std_dev}\t{self.std_dev}\t{(self.bias_factor/(self.bias_factor-1))*self.bias_height*self.regulation_factor[-1][0]}\t{self.bias_factor}\n')
                             file.close
                     #\t{self.current_cvs[1]}\t{self.std_dev}
                 
@@ -578,7 +579,7 @@ class WT_Metadynamics(MolecularDynamics):
         std_dev = self.std_dev
 
         # Evaluate the Gaussian for all means at once using numpy broadcasting
-        gaussian_vals = jnp.exp(-0.5*((x - mean_cvs[:, jnp.newaxis])**2/(0.5*std_dev**2))) 
+        gaussian_vals = jnp.exp(-0.5*((x - mean_cvs[:, jnp.newaxis])**2/(std_dev**2))) 
         
         #print('regulation_factor: ', self.previous_portential,self.nsteps)
         # Sum over all means and return the result
@@ -603,7 +604,7 @@ class WT_Metadynamics(MolecularDynamics):
         std_dev = self.std_dev
 
         # Evaluate the Gaussian for all means at once using numpy broadcasting
-        gaussian_vals = jnp.exp(-0.5*((x - mean_cvs[:, jnp.newaxis])**2/(0.5*std_dev**2))) 
+        gaussian_vals = jnp.exp(-0.5*((x - mean_cvs[:, jnp.newaxis])**2/(std_dev**2))) 
         
         #print('regulation_factor: ', self.previous_portential,self.nsteps)
         # Sum over all means and return the result
@@ -628,8 +629,8 @@ class WT_Metadynamics(MolecularDynamics):
         
         #print(mean_cvs[:, 0])
         # Evaluate the Gaussian for all means at once using numpy broadcasting
-        gaussian_vals = jnp.exp(-0.5*((x - mean_cvs[:, 0])**2/(0.5*std_dev**2)) \
-                                                      - 0.5*((y - mean_cvs[:, 1])**2/(0.5*std_dev**2)))
+        gaussian_vals = jnp.exp(-0.5*((x - mean_cvs[:, 0])**2/(std_dev**2)) \
+                                                      - 0.5*((y - mean_cvs[:, 1])**2/(std_dev**2)))
         #regulation_factor=jnp.exp(-self.previous_portential/(self.temp*self.bias_factor)) #the kB here is used to transform from K to eV!
         #print('regulation_factor: ', self.previous_portential,self.nsteps)
         #print(mean_cvs,cvs)
@@ -640,7 +641,7 @@ class WT_Metadynamics(MolecularDynamics):
         print('Sum_Gaussian:', jnp.sum(gaussian_vals,axis=0), 'Previous Potential: ', self.previous_portential,self.nsteps)
         print('Reg_factor: ',regulation_factor, 'T: ', self.temp)'''
         #print('HI')
-        return self.bias_height*self.regulation_factor*jnp.sum(gaussian_vals,axis=0)#[0] 
+        return self.bias_height*self.regulation_factor*jnp.sum(gaussian_vals,axis=0)[0] 
     
     def gaussian_2D(self,cvs):
         """
@@ -658,8 +659,8 @@ class WT_Metadynamics(MolecularDynamics):
         
         #print(mean_cvs[:, 0])
         # Evaluate the Gaussian for all means at once using numpy broadcasting
-        gaussian_vals = jnp.exp(-0.5*((x - mean_cvs[:, 0])**2/(0.5*std_dev**2)) \
-                                                      - 0.5*((y - mean_cvs[:, 1])**2/(0.5*std_dev**2)))
+        gaussian_vals = jnp.exp(-0.5*((x - mean_cvs[:, 0])**2/(std_dev**2)) \
+                                                      - 0.5*((y - mean_cvs[:, 1])**2/(std_dev**2)))
         #regulation_factor=jnp.exp(-self.previous_portential/(self.temp*self.bias_factor)) #the kB here is used to transform from K to eV!
         #print('regulation_factor: ', self.previous_portential,self.nsteps)
         #print(mean_cvs,cvs)
