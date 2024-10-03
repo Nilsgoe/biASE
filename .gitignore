@@ -1,0 +1,8 @@
+*.hdf5
+*.cif
+*.pdf
+.ipynb_checkpoints/
+*.log
+*.traj
+
+__pycache__/
