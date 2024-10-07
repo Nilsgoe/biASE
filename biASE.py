@@ -121,7 +121,7 @@ class General_Bias_Calculator(Calculator):
         elif jacobian.ndim == 2:
             return jacobian
         else:
-            return 'There is an Error in the dimenstions of the CV derivative'
+            return 'There is an Error in the dimensions of the CV derivative'
     
     def calc_hessian(self,f):
         ''' Gives the hessian of the energy with respect to the CVs'''
