@@ -62,6 +62,7 @@ class General_Bias_Calculator(Calculator):
         self.cvs = self.cv_function(atoms_pos)
         #print('CVs ', self.cvs)
         self.energy += self.bias_function(self.cvs)
+        
         #print('Energy' ,self.energy)
 
         if 'forces' in properties: 
