@@ -24,7 +24,7 @@ class Direct_General_Bias_Calculator(Calculator):
         """ Sets up the Calculator from ase for example self.results or allows get_forces (and similar things) to work"""
 
         Calculator.__init__(self, **kwargs)
-
+        print("init calc")
         self.use_jit = use_jit
         self.args = args
         if self.use_jit:
@@ -38,7 +38,18 @@ class Direct_General_Bias_Calculator(Calculator):
             
             #self.hessian_bias_funtion = self.calc_hessian(self.bias_function)
 
-    
+    def update_function(self, bias_function,*args,use_jit=True):
+        self.use_jit = use_jit
+        self.args = args
+        if self.use_jit:
+            self.bias_function = jit(bias_function)
+            self.deriv_bias_function = jit(grad(self.bias_function))
+            #self.hessian_bias_funtion = jit(self.calc_hessian(self.bias_function))
+
+        else:
+            self.bias_function = bias_function
+            self.deriv_bias_function = grad(self.bias_function)
+        
     def calculate(self, atoms=None, properties=['energy','forces'], system_changes=all_changes):
         """ Calculates all the implemented properties. This method needs to call the .calculate form the Calculator class"""
 
@@ -51,6 +62,7 @@ class Direct_General_Bias_Calculator(Calculator):
 
         self.energy += self.bias_function(atoms_pos,*self.args)
         #print('Energy' ,self.energy)
+        #print('CV' ,atoms_pos)
 
         if 'forces' in properties: 
             self.forces = self.calc_forces(atoms_pos)
@@ -164,7 +176,7 @@ class General_Bias_Calculator(Calculator):
         #print('CVs ', self.cvs)
         self.energy += self.bias_function(self.cvs)
         #print('Energy' ,self.energy)
-
+        #print('CV' ,self.cvs)
         if 'forces' in properties: 
             self.forces = self.calc_forces(atoms_pos,self.cvs)
             #print(self.forces)
