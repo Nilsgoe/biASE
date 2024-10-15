@@ -8,7 +8,8 @@ from jax import grad ,jacfwd,jacrev
 from ase.md.md import MolecularDynamics
 from ase.parallel import world, DummyMPI
 from ase import units
-import time
+
+
 
 """Langevin dynamics class.""" #ASE-developers. Last updated on Tue, 08 Oct 2024 05:08:38.
 
@@ -17,7 +18,7 @@ class Metadynamics(MolecularDynamics):
     """Langevin (constant N, V, T) molecular dynamics."""
 
     # Helps Asap doing the right thing.  Increment when changing stuff:
-    _lgv_version = 4
+    _lgv_version = 5
 
     def __init__(self, atoms, timestep, temperature=None, friction=None,
                  fixcm=True, *, temperature_K=None, trajectory=None,
@@ -109,8 +110,8 @@ class Metadynamics(MolecularDynamics):
              raise TypeError("Please provide cvs  if you want to use the Metadynamics option (meta_dyn)!")
         else:
             self.cvs = cv_function
-            self.len_cvs = len(list(self.cvs(atoms.get_positions())))
             self.cv_constants=cv_constants
+            self.len_cvs = len(list(self.cvs(atoms.get_positions(),*self.cv_constants)))
         self.std_dev =std_dev
         self.main_potential = atoms.get_calculator()
         self.bias_height= bias_height
@@ -156,7 +157,7 @@ class Metadynamics(MolecularDynamics):
         self.c4 = fr / 2. * self.c5
 
     def step(self, forces=None):
-        s_f=time.time()
+        #s_f=time.time()
         atoms = self.atoms
         natoms = len(atoms)
         #print(self.nsteps)
@@ -167,10 +168,10 @@ class Metadynamics(MolecularDynamics):
                 atoms.calc =self.meta_dyn_calc       # So updating the calc in the step it self do not make sense
         
         if forces is None:
-            s1=time.time()
+            #s1=time.time()
             forces = atoms.get_forces(md=True)
-            e1=time.time()
-        s2=time.time()    
+            #e1=time.time()
+        #s2=time.time()    
         # This velocity as well as rnd_pos, rnd_mom and a few other
         # variables are stored as attributes, so Asap can do its magic
         # when atoms migrate between processors.
@@ -213,21 +214,21 @@ class Metadynamics(MolecularDynamics):
 
         # recalc velocities after RATTLE constraints are applied
         self.v = (self.atoms.get_positions() - x - self.rnd_pos) / self.dt
-        s3=time.time()
+        #s3=time.time()
         forces = atoms.get_forces(md=True)
-        e3=time.time()
+        #e3=time.time()
         # Update the velocities
         self.v += (self.c1 * forces / self.masses - self.c2 * self.v +
                    self.rnd_vel)
-        e2 = time.time()
+        #e2 = time.time()
         # Second part of RATTLE taken care of here
         atoms.set_momenta(self.v * self.masses)
-        start = time.time()
+        #start = time.time()
         #print(self.nsteps, " Forces before: ",forces)
         ### We update here the potenial if wanted!
         if self.nsteps % self.interval_size ==0:
             if self.meta_dyn == True:
-                self.current_cvs = self.cvs(atoms.get_positions())
+                self.current_cvs = self.cvs(atoms.get_positions(),*self.cv_constants)
                 #print(self.nsteps," Old Means: ",self.old_means, " New Mean: ", self.current_cvs)
                 if self.old_means is None:
                     self.old_means = jnp.array([self.current_cvs]) # save only cv instead of position!!!
@@ -253,18 +254,19 @@ class Metadynamics(MolecularDynamics):
                             else:
                                 file.write(f'\t\t\t\t \t{self.nsteps*self.timestep}\t{self.current_cvs[0]}\t{self.current_cvs[1]}\t{self.std_dev}\t{self.std_dev}\t{self.bias_height}\t{"Not_WT"}\n')
                             file.close
-                end = time.time()
-                e_f=time.time()
-                with open("timing.csv",mode = "a+",newline="") as file:
+                #end = time.time()
+                #e_f=time.time()
+                '''with open("timing.csv",mode = "a+",newline="") as file:
                     writer=csv.writer(file)
-                    writer.writerow([self.nsteps,e1-s1, e3-s3, e2-s2,end-start,e_f-s_f,atoms.get_calculator()])
+                    writer.writerow([self.nsteps,e1-s1, e3-s3, e2-s2,end-start,e_f-s_f,atoms.get_calculator()])'''
 
         else:
-            end = time.time()
+            pass
+            '''end = time.time()
             e_f=time.time()
             with open("timing.csv",mode = "a+",newline="") as file:
                     writer=csv.writer(file)
-                    writer.writerow([self.nsteps,e1-s1,e2-s2, e3-s3, end-start,e_f-s_f,atoms.get_calculator()])
+                    writer.writerow([self.nsteps,e1-s1,e2-s2, e3-s3, end-start,e_f-s_f,atoms.get_calculator()])'''
                             
         ''' if self.nsteps > 1 and self.nsteps <100:
             print(self.nsteps, " Momeneta " ,self.v * self.masses)
@@ -368,8 +370,6 @@ class Metadynamics(MolecularDynamics):
     
     def return_biased_potential(self):
         return self.meta_dyn_calc
-
-
 """Langevin dynamics class.""" #copyed from the v3.22.1 not the master!
 
 
@@ -660,14 +660,14 @@ class WT_Metadynamics(MolecularDynamics):
     """Well_tempered Metadynmaics with Langevin (constant N, V, T) molecular dynamics."""
 
     # Helps Asap doing the right thing.  Increment when changing stuff:
-    _lgv_version = 4
+    _lgv_version = 5
 
     def __init__(self, atoms, timestep, temperature=None, friction=None,
                  fixcm=True, *, temperature_K=None, trajectory=None,
                  logfile=None, loginterval=1, communicator=world,
-                 rng=None, append_trajectory=False,meta_dyn=True,cvs=None,
-                 std_dev=0.1, bias_height=0.001, interval_size= 10, bias_factor=5,
-                output_file = None,well_temp):
+                 rng=None, append_trajectory=False,meta_dyn=True,cv_function = None,
+                 cv_constants=(None,), std_dev=0.1, bias_height=0.001, interval_size = 10,
+                 bias_factor=5, output_file = None,well_temp):
         """
         Parameters:
 
@@ -684,7 +684,9 @@ class WT_Metadynamics(MolecularDynamics):
             The desired temperature, in Kelvin.
 
         friction: float
-            A friction coefficient, typically 1e-4 to 1e-2.
+            A friction coefficient in inverse ASE time units.
+            For example, set ``0.01 / ase.units.fs`` to provide
+            0.01 fs\\ :sup:`−1` (10 ps\\ :sup:`−1`).
 
         fixcm: bool (optional)
             If True, the position and momentum of the center of mass is
@@ -744,14 +746,15 @@ class WT_Metadynamics(MolecularDynamics):
         self.updatevars()
         
         ### Added from med
-        self.position_array= None
-        print("Initial Array:",self.position_array, atoms.get_positions().shape)
+        self.old_means= None
+        print("Initial Array:",self.old_means, atoms.get_positions().shape)
         self.meta_dyn = meta_dyn
-        if meta_dyn ==True and cvs==None:
+        if meta_dyn ==True and cv_function==None:
              raise TypeError("Please provide cvs  if you want to use the Metadynamics option (meta_dyn)!")
         else:
-            self.cvs = cvs
-            self.len_cvs = len(list(self.cvs(atoms.get_positions())))
+            self.cvs = cv_function
+            self.cv_constants=cv_constants
+            self.len_cvs = len(list(self.cvs(atoms.get_positions(),*self.cv_constants)))
         self.std_dev =std_dev
         self.main_potential = atoms.get_calculator()
         self.bias_height= bias_height
@@ -800,29 +803,29 @@ class WT_Metadynamics(MolecularDynamics):
         self.c4 = fr / 2. * self.c5
 
     def step(self, forces=None):
-        if (self.nsteps-1) % self.interval_size ==0: # one could ask why is the update of the calc here?
-            if self.meta_dyn == True:                # This is a great question! The reason is that when
-                #print(self.nsteps, 'update the calc')# The calc gets updated all saved forces and energies get lost!
-                self.atoms.calc =self.meta_dyn_calc  #So updating the calc in the step it self do not make sense
-
-                
+        #s_f=time.time()
         atoms = self.atoms
         natoms = len(atoms)
-         
-        #print(atoms.get_potential_energy(),self.atoms.get_potential_energy())
+        #print(self.nsteps)
+        #print(self.nsteps)
+        if self.nsteps>1: # one could ask why is the update of the calc here?
+            if self.meta_dyn == True:                # This is a great question! The reason is that when
+                #print(self.nsteps, 'update the calc')# The calc gets updated all saved forces and energies get lost!
+                atoms.calc =self.meta_dyn_calc  #So updating the calc in the step it self do not make sense
+
         
         if forces is None:
+            #s1=time.time()
             forces = atoms.get_forces(md=True)
-            #if (self.nsteps-1) % self.interval_size ==0:
-                
-
-        # This velocity as well as xi, eta and a few other variables are stored
-        # as attributes, so Asap can do its magic when atoms migrate between
-        # processors.
+            #e1=time.time()
+        #s2=time.time()    
+        # This velocity as well as rnd_pos, rnd_mom and a few other
+        # variables are stored as attributes, so Asap can do its magic
+        # when atoms migrate between processors.
         self.v = atoms.get_velocities()
 
-        self.xi = self.rng.standard_normal(size=(natoms, 3))
-        self.eta = self.rng.standard_normal(size=(natoms, 3))
+        xi = self.rng.standard_normal(size=(natoms, 3))
+        eta = self.rng.standard_normal(size=(natoms, 3))
 
         # When holonomic constraints for rigid linear triatomic molecules are
         # present, ask the constraints to redistribute xi and eta within each
@@ -830,64 +833,68 @@ class WT_Metadynamics(MolecularDynamics):
         # correct target temperature.
         for constraint in self.atoms.constraints:
             if hasattr(constraint, 'redistribute_forces_md'):
-                constraint.redistribute_forces_md(atoms, self.xi, rand=True)
-                constraint.redistribute_forces_md(atoms, self.eta, rand=True)
+                constraint.redistribute_forces_md(atoms, xi, rand=True)
+                constraint.redistribute_forces_md(atoms, eta, rand=True)
 
-        self.communicator.broadcast(self.xi, 0)
-        self.communicator.broadcast(self.eta, 0)
+        self.communicator.broadcast(xi, 0)
+        self.communicator.broadcast(eta, 0)
+
+        # To keep the center of mass stationary, we have to calculate
+        # the random perturbations to the positions and the momenta,
+        # and make sure that they sum to zero.
+        self.rnd_pos = self.c5 * eta
+        self.rnd_vel = self.c3 * xi - self.c4 * eta
+        if self.fix_com:
+            self.rnd_pos -= self.rnd_pos.sum(axis=0) / natoms
+            self.rnd_vel -= (self.rnd_vel *
+                             self.masses).sum(axis=0) / (self.masses * natoms)
 
         # First halfstep in the velocity.
         self.v += (self.c1 * forces / self.masses - self.c2 * self.v +
-                   self.c3 * self.xi - self.c4 * self.eta)
+                   self.rnd_vel)
 
         # Full step in positions
         x = atoms.get_positions()
-        if self.fix_com:
-            old_com = atoms.get_center_of_mass()
+
         # Step: x^n -> x^(n+1) - this applies constraints if any.
-        atoms.set_positions(x + self.dt * self.v + self.c5 * self.eta)
-        if self.fix_com:
-            atoms.set_center_of_mass(old_com)
+        atoms.set_positions(x + self.dt * self.v + self.rnd_pos)
 
         # recalc velocities after RATTLE constraints are applied
-        self.v = (self.atoms.get_positions() - x -
-                  self.c5 * self.eta) / self.dt
+        self.v = (self.atoms.get_positions() - x - self.rnd_pos) / self.dt
+        #s3=time.time()
         forces = atoms.get_forces(md=True)
-
+        #e3=time.time()
         # Update the velocities
         self.v += (self.c1 * forces / self.masses - self.c2 * self.v +
-                   self.c3 * self.xi - self.c4 * self.eta)
-
-        if self.fix_com:  # subtract center of mass vel
-            self.v -= self._get_com_velocity(self.v)
-
+                   self.rnd_vel)
+        #e2 = time.time()
         # Second part of RATTLE taken care of here
         atoms.set_momenta(self.v * self.masses)
         #start = time.time()
+        #print(self.nsteps, " Forces before: ",forces)
         ### We update here the potenial if wanted!
         if self.nsteps % self.interval_size ==0:
             if self.meta_dyn == True:
-                self.current_cvs = self.cvs(atoms.get_positions())
-                if self.position_array is None:
-                    self.position_array = np.array([self.cvs(atoms.get_positions())]) # save only cv instead of position!!!
+                self.current_pos = atoms.get_positions()
+                self.current_cvs = self.cvs(self.current_pos,*self.cv_constants)
+                if self.old_means is None:
+                    self.old_means = jnp.array([self.current_cvs]) # save only cv instead of position!!!
                     self.previous_portential = 0
                     self.regulation_factor=np.asarray([[np.exp(-self.previous_portential/(self.well_temp*self.bias_factor))]]) #insted pf self.temp regulation_factor=jnp.exp(-self.previous_portential/(self.temp*self.bias_factor)) # kB is already included here but what do to if given in K? 
                     print(self.previous_portential)
                 else:
-                    #print(self.temp,self.well_temp)
-                    if self.len_cvs ==1:
-                        self.previous_portential = self.gaussian_1D(self.current_cvs)# was current_cvs = self.cvs(atoms.get_positions())
-                        #print(self.previous_portential)
-                    if self.len_cvs ==2:    
-                        self.previous_portential = self.gaussian_2D(self.current_cvs) # was current_cvs = self.cvs(atoms.get_positions())
-                    self.regulation_factor=np.vstack([self.regulation_factor, np.exp(-self.previous_portential/(self.well_temp*self.bias_factor))] ) #instead of self.temp
-                    #print(self.previous_portential,self.regulation_factor[-1])
                     #print("Old Means: ",self.position_array, " New Mean: ", self.cvs(atoms.get_positions()))
-                    self.position_array = np.vstack([self.position_array, self.current_cvs]) # save only cv instead of position!!! # was current_cvs = self.cvs(atoms.get_positions())
+                    self.old_means = jnp.vstack([self.old_means, self.current_cvs]) # save only cv instead of position!!! # was current_cvs = self.cvs(atoms.get_positions())
+                    self.regulation_factor=jnp.vstack([self.regulation_factor, np.exp(-self.previous_portential/(self.well_temp*self.bias_factor))] ) #instead of self.temp
+                    #print(self.previous_portential,self.regulation_factor[-1])
                     #print(self.position_array)
 
                 #print(self.regulation_factor)
-                self.bias_potential = self.bias_setup(atoms, self.position_array,self.cvs)
+                if self.nsteps<self.interval_size:
+                    self.bias_potential = self.bias_setup(*self.cv_constants)
+                else:
+                    #print(self.nsteps, " Update Bias")
+                    self.bias_update()
                 
                 #print(self.position_array)
                 self.meta_dyn_calc = LinearCombinationCalculator([self.main_potential,self.bias_potential],[1.,1.])
@@ -903,22 +910,38 @@ class WT_Metadynamics(MolecularDynamics):
                                 file.write(f'\t\t\t\t \t{self.nsteps*self.timestep}\t{self.current_cvs[0]}\t{self.current_cvs[1]}\t{self.std_dev}\t{self.std_dev}\t{self.bias_height*self.regulation_factor[-1][0]}\t{self.bias_factor}\n')
                             file.close
                     #\t{self.current_cvs[1]}\t{self.std_dev}
-                
+        else:
+            pass
         return forces
 
-    def bias_setup(self,atoms, bias_positions,cvs):
+    def bias_setup(self,*args):
         """Here the bias along the cv will be build
            ATM only one cvs with a one dimensional gaussian will be supported
         
         """
-        if self.len_cvs ==1:
-            self.gauissian_bias = General_Bias_Calculator(cvs,self.gaussian_1D,use_jit=True)
+        if self.len_cvs ==1 :
+            if self.cv_constants==(None,):
+                print(self.nsteps, "new bias calc")
+                self.gaussian_bias = Direct_General_Bias_Calculator(self.gaussian_1D,use_jit=True)
+            else:
+                print(self.nsteps, "new bias calc")
+                self.gaussian_bias = Direct_General_Bias_Calculator(self.gaussian_1D,*args,use_jit=True)
         elif self.len_cvs ==2:
-            self.gauissian_bias = General_Bias_Calculator(cvs,self.gaussian_2D,use_jit=True)
+            if self.cv_constants==(None,):
+                self.gaussian_bias = Direct_General_Bias_Calculator(self.gaussian_2D,use_jit=True)
+            else:
+                self.gaussian_bias = Direct_General_Bias_Calculator(self.gaussian_2D,*args,use_jit=True)
+            
         else:
             raise TypeError("CVs need to be inform of an array with one or two entrys! e.g. jnp.array([cv1,cv2]).")
             
-        return self.gauissian_bias
+        return self.gaussian_bias
+    
+    def bias_update(self):
+        if self.len_cvs ==1 :
+            self.bias_potential.update_function(self.gaussian_1D,use_jit=True)
+        if self.len_cvs ==2 :
+            self.bias_potential.update_function(self.gaussian_2D,use_jit=True)
     
 
     def gaussian_1D_sing_reg(self,cvs): ### here with jax numpy
@@ -934,7 +957,7 @@ class WT_Metadynamics(MolecularDynamics):
             this function needs to be tested! seems to be the same as the above numpy version but forces need to be tested
         """ 
         x = cvs[0]
-        mean_cvs = self.position_array.flatten()
+        mean_cvs = self.old_means.flatten()
         std_dev = self.std_dev
 
         # Evaluate the Gaussian for all means at once using numpy broadcasting
@@ -946,7 +969,7 @@ class WT_Metadynamics(MolecularDynamics):
         #print('Previous Potential: ',  self.bias_height*self.regulation_factor*jnp.sum(gaussian_vals, axis=0)[0],self.nsteps)
         return self.bias_height*self.regulation_factor*jnp.sum(gaussian_vals, axis=0)[0] # why [0] check that more - is necessay bc out put would be a 1D list with one entrence
     
-    def gaussian_1D(self,cvs): ### here with jax numpy
+    def gaussian_1D(self,positions,*args): ### here with jax numpy
         """ 
         x (float or numpy array): Input value(s) for evaluating the Gaussian.
             mean (float or numpy array): Mean(s) of the Gaussian(s).
@@ -958,8 +981,10 @@ class WT_Metadynamics(MolecularDynamics):
             
             this function needs to be tested! seems to be the same as the above numpy version but forces need to be tested
         """ 
+        cvs=self.cvs(positions,*args)
         x = cvs[0]
-        mean_cvs = self.position_array.flatten()
+        mean_cvs = self.old_means.flatten()
+        #jax.debug.print("mean of the gaussian_1D: {}", mean_cvs) 
         std_dev = self.std_dev
 
         # Evaluate the Gaussian for all means at once using numpy broadcasting
@@ -972,7 +997,7 @@ class WT_Metadynamics(MolecularDynamics):
         return self.bias_height*jnp.sum(gaussian_vals*self.regulation_factor, axis=0)[0] # why [0] check that more - is necessay bc out put would be a 1D list with one entrence
     
     
-    def gaussian_2D_sing(self,cvs):
+    def gaussian_2D(self,positions,*args):
         """
         Evaluate a 2D Gaussian potential energy surface for the given input collective variable(s) (cvs).
 
@@ -982,44 +1007,16 @@ class WT_Metadynamics(MolecularDynamics):
         Returns:
             float or numpy array: Value(s) of the 2D Gaussian at the given input(s), summed over all means.
         """
+        cvs=self.cvs(positions,*args)
         x, y = cvs
-        mean_cvs= self.position_array
-        std_dev = self.std_dev
+        mean_cvs= self.old_means
+        
+        std_dev = 0.5*self.std_dev**2
         
         #print(mean_cvs[:, 0])
         # Evaluate the Gaussian for all means at once using numpy broadcasting
-        gaussian_vals = jnp.exp(-0.5*((x - mean_cvs[:, 0])**2/(0.5*std_dev**2)) \
-                                                      - 0.5*((y - mean_cvs[:, 1])**2/(0.5*std_dev**2)))
-        #regulation_factor=jnp.exp(-self.previous_portential/(self.temp*self.bias_factor)) #the kB here is used to transform from K to eV!
-        #print('regulation_factor: ', self.previous_portential,self.nsteps)
-        #print(mean_cvs,cvs)
-        # Sum over all means and return the result
-        #print(jnp.sum(gaussian_vals, axis=0)[0])
-        
-        '''print('Potential_NOW: ', self.bias_height*regulation_factor*jnp.sum(gaussian_vals,axis=0),self.nsteps)
-        print('Sum_Gaussian:', jnp.sum(gaussian_vals,axis=0), 'Previous Potential: ', self.previous_portential,self.nsteps)
-        print('Reg_factor: ',regulation_factor, 'T: ', self.temp)'''
-        #print('HI')
-        return self.bias_height*self.regulation_factor*jnp.sum(gaussian_vals,axis=0)#[0] 
-    
-    def gaussian_2D(self,cvs):
-        """
-        Evaluate a 2D Gaussian potential energy surface for the given input collective variable(s) (cvs).
-
-        Args:
-            cvs (float or numpy array): Input value(s) for evaluating the 2D Gaussian.
-
-        Returns:
-            float or numpy array: Value(s) of the 2D Gaussian at the given input(s), summed over all means.
-        """
-        x, y = cvs
-        mean_cvs= self.position_array
-        std_dev = self.std_dev
-        
-        #print(mean_cvs[:, 0])
-        # Evaluate the Gaussian for all means at once using numpy broadcasting
-        gaussian_vals = jnp.exp(-0.5*((x - mean_cvs[:, 0])**2/(0.5*std_dev**2)) \
-                                                      - 0.5*((y - mean_cvs[:, 1])**2/(0.5*std_dev**2)))
+        gaussian_vals = jnp.exp(-0.5*((x - mean_cvs[:, 0])**2 / std_dev +
+                                      (y - mean_cvs[:, 1])**2 / std_dev))
         #regulation_factor=jnp.exp(-self.previous_portential/(self.temp*self.bias_factor)) #the kB here is used to transform from K to eV!
         #print('regulation_factor: ', self.previous_portential,self.nsteps)
         #print(mean_cvs,cvs)
@@ -1033,11 +1030,42 @@ class WT_Metadynamics(MolecularDynamics):
         #print(self.regulation_factor)
         return self.bias_height*jnp.sum(gaussian_vals*self.regulation_factor,axis=0)[0] 
 
+    def gaussian_2D_sing(self,cvs):
+            """
+            Evaluate a 2D Gaussian potential energy surface for the given input collective variable(s) (cvs).
+
+            Args:
+                cvs (float or numpy array): Input value(s) for evaluating the 2D Gaussian.
+
+            Returns:
+                float or numpy array: Value(s) of the 2D Gaussian at the given input(s), summed over all means.
+            """
+            x, y = cvs
+            mean_cvs= self.old_means
+            std_dev = self.std_dev
+            
+            #print(mean_cvs[:, 0])
+            # Evaluate the Gaussian for all means at once using numpy broadcasting
+            gaussian_vals = jnp.exp(-0.5*((x - mean_cvs[:, 0])**2/(0.5*std_dev**2)) \
+                                                        - 0.5*((y - mean_cvs[:, 1])**2/(0.5*std_dev**2)))
+            #regulation_factor=jnp.exp(-self.previous_portential/(self.temp*self.bias_factor)) #the kB here is used to transform from K to eV!
+            #print('regulation_factor: ', self.previous_portential,self.nsteps)
+            #print(mean_cvs,cvs)
+            # Sum over all means and return the result
+            #print(jnp.sum(gaussian_vals, axis=0)[0])
+            
+            '''print('Potential_NOW: ', self.bias_height*regulation_factor*jnp.sum(gaussian_vals,axis=0),self.nsteps)
+            print('Sum_Gaussian:', jnp.sum(gaussian_vals,axis=0), 'Previous Potential: ', self.previous_portential,self.nsteps)
+            print('Reg_factor: ',regulation_factor, 'T: ', self.temp)'''
+            #print('HI')
+            return self.bias_height*self.regulation_factor*jnp.sum(gaussian_vals,axis=0)#[0] 
+        
+    def return_func(self):
+        return self.old_means, self.regulation_factor
 
     def return_bias(self):
         return self.bias_potential
+
     
     def return_biased_potential(self):
-        return self.meta_dyn_calc
-    def return_func(self):
-        return self.position_array, self.regulation_factor
+        return self.meta_dyn_calc 
