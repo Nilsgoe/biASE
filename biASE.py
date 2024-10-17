@@ -3,6 +3,7 @@ from ase.calculators.calculator import Calculator, all_changes
 import jax.numpy as jnp
 from jax import jit
 from jax import grad ,jacfwd,jacrev
+import warnings
 
 
 class Direct_General_Bias_Calculator(Calculator):
@@ -60,16 +61,15 @@ class Direct_General_Bias_Calculator(Calculator):
         
         atoms_pos = atoms.get_positions()
 
-        self.energy += self.bias_function(atoms_pos,*self.args)
+        self.energy += np.array(self.bias_function(atoms_pos,*self.args))
         #print('Energy' ,self.energy)
         #print('CV' ,atoms_pos)
 
         if 'forces' in properties: 
             self.forces = self.calc_forces(atoms_pos)
             #print(self.forces)
-            
             self.results['forces'] = np.asarray(self.forces)
-        
+            print("Forces in the calc ",self.results['forces'])
         if 'stress' in properties:
             self.stress = +0
             pass
@@ -78,7 +78,9 @@ class Direct_General_Bias_Calculator(Calculator):
             self.hessian = self.hessian_bias_funtion(atoms_pos).reshape(len(atoms)*3,len(atoms)*3)
 
         self.results['energy'] = self.energy
-        #print(self.results)
+        if np.any(np.isnan(self.results['forces'])):
+            raise ValueError("Error: There are nan values in the forces.")
+        #print("R",self.results)
         
     
     def calc_forces(self,atoms_pos):
@@ -107,6 +109,14 @@ class Direct_General_Bias_Calculator(Calculator):
         ''' Calcs derivative of the Energy with respect to the positions'''
         return np.asarray(self.deriv_bias_function(atoms_pos,*self.args)) # dimensions (collective variables)
     
+    def calc_Jac_E(self,atoms_pos):
+        ''' Calcs derivative of the Energy with respect to the positions'''
+        if self.use_jit:
+            self.jac_bias_function = jit(jacfwd(self.bias_function))
+        else:
+            self.jac_bias_function = jacfwd(self.bias_function)
+        return np.asarray(self.jac_bias_function(atoms_pos,*self.args))
+
     def calc_hessian(self,f):
         ''' Gives the hessian of the energy with respect to the CVs'''
         return jacfwd(jacrev(f))
@@ -162,6 +172,18 @@ class General_Bias_Calculator(Calculator):
             #self.hessian_bias_funtion = self.calc_hessian(self.bias_function)
 
     
+    def update_function(self, bias_function,use_jit=True):
+        self.use_jit = use_jit
+        #print("Args, ",self.args)
+        if self.use_jit:
+            self.bias_function = jit(bias_function)
+            self.deriv_bias_function = jit(grad(self.bias_function))
+            #self.hessian_bias_funtion = jit(self.calc_hessian(self.bias_function))
+
+        else:
+            self.bias_function = bias_function
+            self.deriv_bias_function = grad(self.bias_function)
+
     def calculate(self, atoms=None, properties=['energy','forces'], system_changes=all_changes):
         """ Calculates all the implemented properties. This method needs to call the .calculate form the Calculator class"""
 
@@ -174,7 +196,7 @@ class General_Bias_Calculator(Calculator):
 
         self.cvs = self.cv_function(atoms_pos)
         #print('CVs ', self.cvs)
-        self.energy += self.bias_function(self.cvs)
+        self.energy += np.array(self.bias_function(self.cvs))
         #print('Energy' ,self.energy)
         #print('CV' ,self.cvs)
         if 'forces' in properties: 
@@ -191,6 +213,8 @@ class General_Bias_Calculator(Calculator):
             self.hessian = self.hessian_bias_funtion(atoms_pos).reshape(len(atoms)*3,len(atoms)*3)
 
         self.results['energy'] = self.energy
+        if np.any(np.isnan(self.results['forces'])):
+            raise ValueError("Error: There are nan values in the forces.")
         #print(self.results)
         
     
