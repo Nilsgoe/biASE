@@ -69,6 +69,8 @@ class Direct_General_Bias_Calculator(Calculator):
             self.forces = self.calc_forces(atoms_pos)
             #print(self.forces)
             self.results['forces'] = np.asarray(self.forces)
+            if np.any(np.isnan(self.results['forces'])):
+                raise ValueError("Error: There are nan values in the forces.")
             print("Forces in the calc ",self.results['forces'])
         if 'stress' in properties:
             self.stress = +0
@@ -78,8 +80,7 @@ class Direct_General_Bias_Calculator(Calculator):
             self.hessian = self.hessian_bias_funtion(atoms_pos).reshape(len(atoms)*3,len(atoms)*3)
 
         self.results['energy'] = self.energy
-        if np.any(np.isnan(self.results['forces'])):
-            raise ValueError("Error: There are nan values in the forces.")
+    
         #print("R",self.results)
         
     
@@ -195,16 +196,17 @@ class General_Bias_Calculator(Calculator):
         atoms_pos = atoms.get_positions()
 
         self.cvs = self.cv_function(atoms_pos)
-        #print('CVs ', self.cvs)
+        print('CVs ', self.cvs)
         self.energy += np.array(self.bias_function(self.cvs))
-        #print('Energy' ,self.energy)
+        print('Energy' ,self.energy)
         #print('CV' ,self.cvs)
         if 'forces' in properties: 
             self.forces = self.calc_forces(atoms_pos,self.cvs)
             #print(self.forces)
             
             self.results['forces'] = np.asarray(self.forces)
-        
+            if np.any(np.isnan(self.results['forces'])):
+                raise ValueError("Error: There are nan values in the forces.")
         if 'stress' in properties:
             self.stress = +0
             pass
@@ -213,8 +215,7 @@ class General_Bias_Calculator(Calculator):
             self.hessian = self.hessian_bias_funtion(atoms_pos).reshape(len(atoms)*3,len(atoms)*3)
 
         self.results['energy'] = self.energy
-        if np.any(np.isnan(self.results['forces'])):
-            raise ValueError("Error: There are nan values in the forces.")
+        
         #print(self.results)
         
     
@@ -226,15 +227,15 @@ class General_Bias_Calculator(Calculator):
         """
         ### Sets up an force array of zeros with the right dimensions! 
         force_array = self.set_force_array(atoms_pos)
-        #print('Empty Force ', force_array)
+        print('Empty Force ', force_array)
         
         ### Calcs derivative of the Energy with respect to the collective variables
         self.deriv_E = self.calc_deriv_E_to_cvs(cvs)
-        #print('deriv_E', self.deriv_E) 
+        print('deriv_E', self.deriv_E) 
         
         ### Calcs derivative of the collective varriable with respect to the cartesian coordiantes of the atom postions
         self.deriv_cvs = self.calc_deriv_cvs(atoms_pos)
-        #print('deriv_cvs', self.deriv_cvs) 
+        print('deriv_cvs', self.deriv_cvs) 
         #print(np.dot(self.deriv_E,self.deriv_cvs))
         force_array -=np.dot(self.deriv_E,self.deriv_cvs) #dimensions (number of atom(s), coordinates of the atom)
         return force_array
