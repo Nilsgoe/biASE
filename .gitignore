@@ -4,5 +4,8 @@
 .ipynb_checkpoints/
 *.log
 *.traj
+*.png
+*.csv
 
+diff_gp/
 __pycache__/
