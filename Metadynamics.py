@@ -112,7 +112,15 @@ class Metadynamics(MolecularDynamics):
         self.interval_size = interval_size
         self.output_file = output_file
         self.timestep = timestep
-        header = f"\t \t\t\t \t time \t \t CV1 \t \t CV2 \t \t \t std1   \t std2 \t height \t biasfactor \n"
+        
+        if self.len_cvs == 1:
+            header = f"\t \t\t\t \t time \t \t CV1 \t \t \t std1 \t height \t biasfactor \n"
+        elif self.len_cvs == 2:
+            header = f"\t \t\t\t \t time \t \t CV1 \t \t CV2 \t \t \t std1   \t std2 \t height \t biasfactor \n"
+        else:
+            raise Exception("Currently Metadynamics is only avaliable for one or two CVs")
+        
+        
         if self.output_file != None:
             with open(self.output_file, "w") as file:
                 file.write(header)
@@ -216,6 +224,7 @@ class Metadynamics(MolecularDynamics):
         #start = time.time()
         ### We update here the potenial if wanted!
         if self.nsteps % self.interval_size ==0:
+            print(self.nsteps,self.timestep,self.nsteps*self.timestep)
             if self.meta_dyn == True:
                 self.current_cvs = self.cvs(atoms.get_positions())
                 if self.old_means is None:
@@ -234,9 +243,9 @@ class Metadynamics(MolecularDynamics):
                 if self.output_file != None:
                         with open(self.output_file, "+a") as file:
                             if self.len_cvs ==1:
-                                file.write(f'\t\t\t\t \t{self.nsteps*self.timestep}\t{self.current_cvs[0]}\t{self.std_dev}\t{self.bias_height}\t{"Not_WT"}\n')
+                                file.write(f'\t\t\t\t \t{self.nsteps*self.timestep/(units.fs)}\t{self.current_cvs[0]}\t{self.std_dev}\t{self.bias_height}\t{"Not_WT"}\n')
                             else:
-                                file.write(f'\t\t\t\t \t{self.nsteps*self.timestep}\t{self.current_cvs[0]}\t{self.current_cvs[1]}\t{self.std_dev}\t{self.std_dev}\t{self.bias_height}\t{"Not_WT"}\n')
+                                file.write(f'\t\t\t\t \t{self.nsteps*self.timestep/(units.fs)}\t{self.current_cvs[0]}\t{self.current_cvs[1]}\t{self.std_dev}\t{self.std_dev}\t{self.bias_height}\t{"Not_WT"}\n')
                             file.close
 
         else:
@@ -435,8 +444,14 @@ class WT_Metadynamics(MolecularDynamics):
         self.output_file = output_file
         self.timestep = timestep
         self.well_temp=well_temp
-    
-        header = f"\t \t\t\t \t time \t \t CV1 \t \t CV2 \t \t \t std1   \t std2 \t height \t biasfactor \n"
+
+        if self.len_cvs == 1:
+            header = f"\t \t\t\t \t time \t \t CV1 \t \t \t std1 \t height \t biasfactor \n"
+        elif self.len_cvs == 2:
+            header = f"\t \t\t\t \t time \t \t CV1 \t \t CV2 \t \t \t std1   \t std2 \t height \t biasfactor \n"
+        else:
+            raise Exception("Currently Metadynamics is only avaliable for one or two CVs")
+        
         if self.output_file != None:
             with open(self.output_file, "w") as file:
                 file.write(header)
@@ -542,6 +557,7 @@ class WT_Metadynamics(MolecularDynamics):
         #start = time.time()
         ### We update here the potenial if wanted!
         if self.nsteps % self.interval_size ==0:
+            print(self.nsteps,self.timestep,self.nsteps*self.timestep)
             if self.meta_dyn == True:
                 self.current_cvs = self.cvs(atoms.get_positions())
                 if self.old_means is None:
@@ -578,9 +594,9 @@ class WT_Metadynamics(MolecularDynamics):
                 if self.output_file != None:
                         with open(self.output_file, "+a") as file:
                             if self.len_cvs ==1:
-                                file.write(f'\t\t\t\t \t{self.nsteps*self.timestep}\t\t{self.current_cvs[0]}\t\t{self.std_dev}\t\t{(self.bias_factor/(self.bias_factor-1))*self.bias_height*self.regulation_factor[-1][0]}\t\t{self.bias_factor}\n')
+                                file.write(f'\t\t\t\t \t{self.nsteps*self.timestep/(units.fs)}\t\t{self.current_cvs[0]}\t\t{self.std_dev}\t\t{(self.bias_factor/(self.bias_factor-1))*self.bias_height*self.regulation_factor[-1][0]}\t\t{self.bias_factor}\n')
                             else:
-                                file.write(f'\t\t\t\t \t{self.nsteps*self.timestep}\t\t{self.current_cvs[0]}\t\t{self.current_cvs[1]}\t\t{self.std_dev}\t\t{self.std_dev}\t\t{(self.bias_factor/(self.bias_factor-1))*self.bias_height*self.regulation_factor[-1][0]}\t\t{self.bias_factor}\n')
+                                file.write(f'\t\t\t\t \t{self.nsteps*self.timestep/(units.fs)}\t\t{self.current_cvs[0]}\t\t{self.current_cvs[1]}\t\t{self.std_dev}\t\t{self.std_dev}\t\t{(self.bias_factor/(self.bias_factor-1))*self.bias_height*self.regulation_factor[-1][0]}\t\t{self.bias_factor}\n')
                             file.close
                     #\t{self.current_cvs[1]}\t{self.std_dev}
         else:

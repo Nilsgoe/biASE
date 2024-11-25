@@ -55,23 +55,19 @@ class Direct_General_Bias_Calculator(Calculator):
         """ Calculates all the implemented properties. This method needs to call the .calculate form the Calculator class"""
 
         Calculator.calculate(self, atoms, properties, system_changes) # for setting up all necessary stuff DO NOT define ANY stuff by hand this method defines! otherwise it won't recoginze changes
-        #print('prop', properties)
        
         self.energy = 0
         
         atoms_pos = atoms.get_positions()
 
         self.energy += np.array(self.bias_function(atoms_pos,*self.args))
-        #print('Energy' ,self.energy)
-        #print('CV' ,atoms_pos)
 
         if 'forces' in properties: 
             self.forces = self.calc_forces(atoms_pos)
-            #print(self.forces)
             self.results['forces'] = np.asarray(self.forces)
             if np.any(np.isnan(self.results['forces'])):
                 raise ValueError("Error: There are nan values in the forces.")
-            print("Forces in the calc ",self.results['forces'])
+            
         if 'stress' in properties:
             self.stress = +0
             pass
@@ -81,7 +77,6 @@ class Direct_General_Bias_Calculator(Calculator):
 
         self.results['energy'] = self.energy
     
-        #print("R",self.results)
         
     
     def calc_forces(self,atoms_pos):
@@ -92,11 +87,9 @@ class Direct_General_Bias_Calculator(Calculator):
         """
         ### Sets up an force array of zeros with the right dimensions! 
         force_array = self.set_force_array(atoms_pos)
-        #print('Empty Force ', force_array)
-        
+
         ### Calcs derivativecalc_deriv_Eof the Energy with respect to the collective variables
         self.deriv_E = self.calc_deriv_E(atoms_pos)
-        #print('deriv_E', self.deriv_E) 
     
         force_array= -self.deriv_E
         return force_array
@@ -175,7 +168,6 @@ class General_Bias_Calculator(Calculator):
     
     def update_function(self, bias_function,use_jit=True):
         self.use_jit = use_jit
-        #print("Args, ",self.args)
         if self.use_jit:
             self.bias_function = jit(bias_function)
             self.deriv_bias_function = jit(grad(self.bias_function))
@@ -189,20 +181,17 @@ class General_Bias_Calculator(Calculator):
         """ Calculates all the implemented properties. This method needs to call the .calculate form the Calculator class"""
 
         Calculator.calculate(self, atoms, properties, system_changes) # for setting up all necessary stuff DO NOT define ANY stuff by hand this method defines! otherwise it won't recoginze changes
-        #print('prop', properties)
        
         self.energy = 0
         
         atoms_pos = atoms.get_positions()
 
         self.cvs = self.cv_function(atoms_pos)
-        #print('CVs ', self.cvs)
         self.energy += np.array(self.bias_function(self.cvs))
-        #print('Energy' ,self.energy)
-        #print('CV' ,self.cvs)
+
+
         if 'forces' in properties: 
             self.forces = self.calc_forces(atoms_pos,self.cvs)
-            #print(self.forces)
             
             self.results['forces'] = np.asarray(self.forces)
             if np.any(np.isnan(self.results['forces'])):
@@ -216,7 +205,6 @@ class General_Bias_Calculator(Calculator):
 
         self.results['energy'] = self.energy
         
-        #print(self.results)
         
     
     def calc_forces(self,atoms_pos,cvs):
@@ -227,16 +215,12 @@ class General_Bias_Calculator(Calculator):
         """
         ### Sets up an force array of zeros with the right dimensions! 
         force_array = self.set_force_array(atoms_pos)
-        #print('Empty Force ', force_array)
         
         ### Calcs derivative of the Energy with respect to the collective variables
         self.deriv_E = self.calc_deriv_E_to_cvs(cvs)
-        #print('deriv_E', self.deriv_E) 
         
         ### Calcs derivative of the collective varriable with respect to the cartesian coordiantes of the atom postions
         self.deriv_cvs = self.calc_deriv_cvs(atoms_pos)
-        #print('deriv_cvs', self.deriv_cvs) 
-        #print(np.dot(self.deriv_E,self.deriv_cvs))
         force_array -=np.dot(self.deriv_E,self.deriv_cvs) #dimensions (number of atom(s), coordinates of the atom)
         return force_array
     
