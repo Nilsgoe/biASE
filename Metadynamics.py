@@ -534,23 +534,27 @@ class WT_Metadynamics(MolecularDynamics):
             self.rnd_vel -= (self.rnd_vel *
                              self.masses).sum(axis=0) / (self.masses * natoms)
         # First halfstep in the velocity.
+        print("V1:",self.v)
         self.v += (self.c1 * forces / self.masses - self.c2 * self.v +
                    self.rnd_vel)
+        print("V2:",self.v)
         # Full step in positions
         x = atoms.get_positions()
-        #print("X: ", x,"DT: ",self.dt,"V ", self.v,"RND_pos ", self.rnd_pos)
+        print("X: ", x,"DT: ",self.dt,"V ", self.v,"RND_pos ", self.rnd_pos)
         # Step: x^n -> x^(n+1) - this applies constraints if any.
         atoms.set_positions(x + self.dt * self.v + self.rnd_pos)
         #print("This should be: ",x + self.dt * self.v + self.rnd_pos)
-        #print("NEW pos: ",atoms.get_positions())
+        print("NEW pos: ",atoms.get_positions())
         # recalc velocities after RATTLE constraints are applied
         self.v = (self.atoms.get_positions() - x - self.rnd_pos) / self.dt
+        print("NEW V:",self.v)
         #s3=time.time()
         forces = atoms.get_forces(md=True)
-
+        print("F:",forces,atoms.calc)
         # Update the velocities
         self.v += (self.c1 * forces / self.masses - self.c2 * self.v +
                    self.rnd_vel)
+        print("NEW V:",self.v)
         #e2 = time.time()
         # Second part of RATTLE taken care of here
         atoms.set_momenta(self.v * self.masses)
