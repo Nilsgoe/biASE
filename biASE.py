@@ -25,7 +25,7 @@ class Direct_General_Bias_Calculator(Calculator):
         """ Sets up the Calculator from ase for example self.results or allows get_forces (and similar things) to work"""
 
         Calculator.__init__(self, **kwargs)
-        print("init calc")
+        #print("init calc")
         self.use_jit = use_jit
         self.args = args
         if self.use_jit:
@@ -185,15 +185,16 @@ class General_Bias_Calculator(Calculator):
         self.energy = 0
         
         atoms_pos = atoms.get_positions()
-
+        #print("in calc pos:", atoms_pos)
         self.cvs = self.cv_function(atoms_pos)
         self.energy += np.array(self.bias_function(self.cvs))
-
+        #print("cv: ",self.cvs, "E: ",self.energy)
 
         if 'forces' in properties: 
             self.forces = self.calc_forces(atoms_pos,self.cvs)
             
             self.results['forces'] = np.asarray(self.forces)
+            #print("Force;",self.forces)
             if np.any(np.isnan(self.results['forces'])):
                 raise ValueError("Error: There are nan values in the forces.")
         if 'stress' in properties:
@@ -221,6 +222,8 @@ class General_Bias_Calculator(Calculator):
         
         ### Calcs derivative of the collective varriable with respect to the cartesian coordiantes of the atom postions
         self.deriv_cvs = self.calc_deriv_cvs(atoms_pos)
+        #print("dedcv:",self.deriv_E)
+        #print("dcvdx:", self.deriv_cvs)
         force_array -=np.dot(self.deriv_E,self.deriv_cvs) #dimensions (number of atom(s), coordinates of the atom)
         return force_array
     
