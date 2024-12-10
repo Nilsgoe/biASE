@@ -13,6 +13,7 @@ class PCA:
         self.mean = None
         self.components = None
         self.explained_variance = None
+        self.components_ = None  # This will store the principal components
 
     #@jit
     def fit(self, X):
@@ -43,6 +44,9 @@ class PCA:
         # Keep only the top components
         self.explained_variance = eigenvalues[:self.num_components]
         self.components = eigenvectors[:, :self.num_components]
+
+        # Store the components for easy access (similar to sklearn)
+        self.components_ = self.components
 
         return self
 
