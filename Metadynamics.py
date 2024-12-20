@@ -9,6 +9,40 @@ from ase.parallel import world, DummyMPI
 from ase import units
 import jax
 
+def smooth_rising_function(x,height=200, center=0, boundary=1.2, steepness=20):
+    # Adjusts the function to be approximately 0 within [center - boundary, center + boundary] and rise rapidly outside
+    e_value = height*jnp.tanh(steepness * (jnp.abs(x - center) - boundary))
+    return e_value[0]
+
+
+def asymmetric_hookean_well(x, lower_boundary=-1.2, upper_boundary=1.2, k_lower=50, k_upper=50):
+    """
+    Asymmetric well function using Hookean springs, compatible with JAX.
+    
+    Parameters:
+    - x (float): The value to evaluate.
+    - lower_boundary (float): The lower boundary of the well.
+    - upper_boundary (float): The upper boundary of the well.
+    - k_lower (float): Spring constant for the lower side (x < lower_boundary).
+    - k_upper (float): Spring constant for the upper side (x > upper_boundary).
+    
+    Returns:
+    - float: The value of the potential.
+    """
+    # Below lower boundary: Hookean spring potential
+    below_lower = k_lower * jnp.square(lower_boundary - x)
+    
+    # Above upper boundary: Hookean spring potential
+    above_upper = k_upper * jnp.square(x - upper_boundary)
+    
+    # Inside the boundaries: Zero potential
+    inside_well = 0.0
+    
+    # Use JAX's `where` to define the piecewise function
+    potential = jnp.where(x < lower_boundary, below_lower, 
+                 jnp.where(x > upper_boundary, above_upper, inside_well))
+    return potential[0]
+
 class Metadynamics(MolecularDynamics):
     """Langevin (constant N, V, T) molecular dynamics."""
 
