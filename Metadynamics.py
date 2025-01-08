@@ -43,6 +43,43 @@ def asymmetric_hookean_well(x, lower_boundary=-1.2, upper_boundary=1.2, k_lower=
                  jnp.where(x > upper_boundary, above_upper, inside_well))
     return potential[0]
 
+
+def asymmetric_hookean_well_2d(x, y, 
+                               x_lower_boundary=-1.2, x_upper_boundary=1.2,
+                               y_lower_boundary=-1.2, y_upper_boundary=1.2,
+                               k_x_lower=50, k_x_upper=50,
+                               k_y_lower=50, k_y_upper=50):
+    """
+    Asymmetric well function using Hookean springs, extended to 2D, compatible with JAX.
+    
+    Parameters:
+    - x, y (float): The coordinates to evaluate.
+    - x_lower_boundary, x_upper_boundary (float): Boundaries for the x-dimension.
+    - y_lower_boundary, y_upper_boundary (float): Boundaries for the y-dimension.
+    - k_x_lower, k_x_upper (float): Spring constants for x-dimension.
+    - k_y_lower, k_y_upper (float): Spring constants for y-dimension.
+    
+    Returns:
+    - float: The value of the 2D potential.
+    """
+    # X-dimension Hookean potential
+    below_x_lower = k_x_lower * jnp.square(x_lower_boundary - x)
+    above_x_upper = k_x_upper * jnp.square(x - x_upper_boundary)
+    x_inside_well = 0.0
+    x_potential = jnp.where(x < x_lower_boundary, below_x_lower, 
+                   jnp.where(x > x_upper_boundary, above_x_upper, x_inside_well))
+    
+    # Y-dimension Hookean potential
+    below_y_lower = k_y_lower * jnp.square(y_lower_boundary - y)
+    above_y_upper = k_y_upper * jnp.square(y - y_upper_boundary)
+    y_inside_well = 0.0
+    y_potential = jnp.where(y < y_lower_boundary, below_y_lower, 
+                   jnp.where(y > y_upper_boundary, above_y_upper, y_inside_well))
+    
+    # Combine the potentials from both dimensions
+    total_potential = x_potential + y_potential
+    return total_potential
+
 class Metadynamics(MolecularDynamics):
     """Langevin (constant N, V, T) molecular dynamics."""
 
