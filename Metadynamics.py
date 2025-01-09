@@ -523,15 +523,17 @@ class WT_Metadynamics(MolecularDynamics):
                 header = f"#\t Height={self.bias_height}, Pace={self.interval_size}, Step_size={self.timestep}, CV_Number=2, Bias_factor={self.bias_factor}, WT={self.well_temp}, Stretch={self.stretch} \n\t\t\t\t time \t\t CV1 \t\t CV2 \t\t std1 \t\t std2 \t\t height \t\t biasfactor \n"
             else:
                 raise Exception("Currently Metadynamics is only avaliable for one or two CVs")
+            if self.output_file != None:
+                with open(self.output_file, "w") as file:
+                    file.write(header)
         else:
+            print("Warning: The output will be saved in the input file!")
             self.output_file=self.input_file
             if self.len_cvs!=1 or self.len_cvs!=2:
                 raise Exception("Currently Metadynamics is only avaliable for one or two CVs")
             
         
-        if self.output_file != None:
-            with open(self.output_file, "w") as file:
-                file.write(header)
+        
         
     def todict(self):
         d = MolecularDynamics.todict(self)
@@ -571,6 +573,38 @@ class WT_Metadynamics(MolecularDynamics):
         natoms = len(atoms)
         #print(self.nsteps)
         #print(self.nsteps)
+        if self.nsteps==0 and self.input_file!=None:
+            data=[]
+            with open(self.input_file, "r") as file:
+                #Skip Setup and Header
+                next(file)
+                next(file)
+                for line in file:
+                    # Skip empty lines or lines that don't contain relevant data
+                    if line.strip() and not line.startswith("#"):
+                        # Split the line into columns based on whitespace
+                        columns = line.split()
+                        # Convert values to floats and append to the list
+                        data.append([float(value) for value in columns])
+
+            # Convert the list of lists into a JAX array
+            data_jax = jnp.array(data)
+            if self.len_cvs == 1:
+                self.times, self.cv1s, self.std1, self.heights, self.biasfactor = data_jax.T
+                self.old_means = self.cv1s
+            elif self.len_cvs == 2:
+                self.times, self.cv1s, self.cv2s, self.std1, self.std2, self.heights, self.biasfactor = data_jax.T
+                self.std2 = self.std2[0]
+                self.old_means = np.column_stack((self.cv1s, self.cv2s))
+            else:
+                raise Exception("Currently Metadynamics is only implemented for one or two CVs")        
+            self.std1=self.std1[0]
+            self.bias_factor=self.biasfactor[0]
+            # Modify self.heights by removing the last element and prepending 0
+            self.modified_heights = np.concatenate(([0], self.heights[:-1]))
+            self.regulation_factor=np.asarray([[np.exp(-self.heights/(self.modified_heights*self.bias_factor))]])
+            
+            
         if self.nsteps!=0: # one could ask why is the update of the calc here?
             if self.meta_dyn == True:                # This is a great question! The reason is that when
                 #print(self.nsteps, 'update the calc')# The calc gets updated all saved forces and energies get lost!
