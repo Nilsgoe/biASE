@@ -413,7 +413,7 @@ class WT_Metadynamics(MolecularDynamics):
                  fixcm=True, *, temperature_K=None, trajectory=None,
                  logfile=None, loginterval=1, communicator=world,
                  rng=None, append_trajectory=False,meta_dyn=True,cvs=None,
-                 std_dev=0.1, bias_height=0.001, interval_size= 10, bias_factor=5,
+                 std_dev=[0.1,], bias_height=0.001, interval_size= 10, bias_factor=5,
                  output_file = None,well_temp,stretch=False,input_file=None):
         """
         Parameters:
@@ -602,7 +602,8 @@ class WT_Metadynamics(MolecularDynamics):
             self.bias_factor=self.biasfactor[0]
             # Modify self.heights by removing the last element and prepending 0
             self.modified_heights = np.concatenate(([0], self.heights[:-1]))
-            self.regulation_factor=np.asarray([[np.exp(-self.heights/(self.modified_heights*self.bias_factor))]])
+            if self.well_temp==True:
+                self.regulation_factor=np.asarray([[np.exp(-self.heights/(self.modified_heights*self.bias_factor))]])
             
             
         if self.nsteps!=0: # one could ask why is the update of the calc here?
@@ -751,7 +752,7 @@ class WT_Metadynamics(MolecularDynamics):
         """ 
         x = cvs[0]
         mean_cvs = self.old_means.flatten()
-        std_dev = self.std_dev
+        std_dev = self.std_dev[0]
 
         # Evaluate the Gaussian for all means at once using numpy broadcasting
         gaussian_vals = (jnp.exp(-0.5*((x - mean_cvs[:, jnp.newaxis])**2/(std_dev**2)))).flatten()
@@ -792,8 +793,8 @@ class WT_Metadynamics(MolecularDynamics):
         
         #print(mean_cvs[:, 0])
         # Evaluate the Gaussian for all means at once using numpy broadcasting
-        gaussian_vals = jnp.exp(-0.5*((x - mean_cvs[:, 0])**2/(std_dev**2)) \
-                                -0.5*((y - mean_cvs[:, 1])**2/(std_dev**2)))
+        gaussian_vals = jnp.exp(-0.5*((x - mean_cvs[:, 0])**2/(std_dev[0]**2)) \
+                                -0.5*((y - mean_cvs[:, 1])**2/(std_dev[1]**2)))
         #regulation_factor=jnp.exp(-self.previous_portential/(self.temp*self.bias_factor)) #the kB here is used to transform from K to eV!
         #print('regulation_factor: ', self.previous_portential,self.nsteps)
         #print(mean_cvs,cvs)
