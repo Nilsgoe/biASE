@@ -507,7 +507,16 @@ class WT_Metadynamics(MolecularDynamics):
         else:
             self.cvs = cvs
             self.len_cvs = len(list(self.cvs(atoms.get_positions())))
-        self.std_dev =std_dev
+            
+        #also supports a single std_dev
+        if not isinstance(std_dev, list):
+            if self.len_cvs==1:
+                self.std_dev = [std_dev]
+            elif self.len_cvs==2:
+                self.std_dev = [std_dev,std_dev]
+        else:
+            self.std_dev = std_dev
+            
         self.main_potential = atoms.get_calculator()
         self.bias_height= bias_height
         self.interval_size = interval_size
@@ -592,19 +601,21 @@ class WT_Metadynamics(MolecularDynamics):
             if self.len_cvs == 1:
                 self.times, self.cv1s, self.std1, self.heights, self.biasfactor = data_jax.T
                 self.old_means = self.cv1s
+                self.std_dev=[self.std1[0]]
             elif self.len_cvs == 2:
                 self.times, self.cv1s, self.cv2s, self.std1, self.std2, self.heights, self.biasfactor = data_jax.T
-                self.std2 = self.std2[0]
+                self.std_dev=[self.std1[0],self.std2[0]]
                 self.old_means = np.column_stack((self.cv1s, self.cv2s))
             else:
                 raise Exception("Currently Metadynamics is only implemented for one or two CVs")        
-            self.std1=self.std1[0]
+            self.nsteps_input = len(self.times)*self.interval_size
             self.bias_factor=self.biasfactor[0]
             # Modify self.heights by removing the last element and prepending 0
             self.modified_heights = np.concatenate(([0], self.heights[:-1]))
             if self.well_temp==True:
                 self.regulation_factor=np.asarray([[np.exp(-self.heights/(self.modified_heights*self.bias_factor))]])
-            
+        else:
+            self.nsteps_input=0
             
         if self.nsteps!=0: # one could ask why is the update of the calc here?
             if self.meta_dyn == True:                # This is a great question! The reason is that when
@@ -672,7 +683,8 @@ class WT_Metadynamics(MolecularDynamics):
         #start = time.time()
         ### We update here the potenial if wanted!
         if self.nsteps % self.interval_size ==0:
-            print(self.nsteps,self.timestep,self.nsteps*self.timestep)
+            self.nsteps_total= self.nsteps + self.nsteps_input #Here it should be checked if self.nsteps gets reseted
+            print(self.nsteps_total,self.timestep,self.nsteps_total*self.timestep)
             if self.meta_dyn == True:
                 self.current_cvs = self.cvs(atoms.get_positions())
                 if self.old_means is None:
@@ -694,7 +706,7 @@ class WT_Metadynamics(MolecularDynamics):
                     #print(self.old_means)
 
                 #print(self.regulation_factor)
-                if self.nsteps<self.interval_size:
+                if self.nsteps_total<self.interval_size:
                     self.bias_potential = self.bias_setup(self.cvs)
                 else:
                     #print(self.nsteps, " Update Bias")
@@ -709,9 +721,9 @@ class WT_Metadynamics(MolecularDynamics):
                 if self.output_file != None:
                         with open(self.output_file, "+a") as file:
                             if self.len_cvs ==1:
-                                file.write(f'\t\t\t\t {self.nsteps*self.timestep/(units.fs):>7.2f} \t\t {self.current_cvs[0]:.8f} \t\t {self.std_dev} \t\t {(self.bias_factor/(self.bias_factor-1))*self.bias_height*self.regulation_factor[-1][0]:.8f} \t\t {self.bias_factor}\n')
+                                file.write(f'\t\t\t\t {self.nsteps_total*self.timestep/(units.fs):>7.2f} \t\t {self.current_cvs[0]:.8f} \t\t {self.std_dev} \t\t {(self.bias_factor/(self.bias_factor-1))*self.bias_height*self.regulation_factor[-1][0]:.8f} \t\t {self.bias_factor}\n')
                             else:
-                                file.write(f'\t\t\t\t {self.nsteps*self.timestep/(units.fs):>7.2f} \t\t {self.current_cvs[0]:.8f} \t\t {self.current_cvs[1]:.8f} \t\t {self.std_dev} \t\t {self.std_dev} \t\t {(self.bias_factor/(self.bias_factor-1))*self.bias_height*self.regulation_factor[-1][0]:.8f} \t\t {self.bias_factor}\n')
+                                file.write(f'\t\t\t\t {self.nsteps_total*self.timestep/(units.fs):>7.2f} \t\t {self.current_cvs[0]:.8f} \t\t {self.current_cvs[1]:.8f} \t\t {self.std_dev} \t\t {self.std_dev} \t\t {(self.bias_factor/(self.bias_factor-1))*self.bias_height*self.regulation_factor[-1][0]:.8f} \t\t {self.bias_factor}\n')
                             file.close
                     #\t{self.current_cvs[1]}\t{self.std_dev}
         else:
