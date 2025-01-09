@@ -414,7 +414,7 @@ class WT_Metadynamics(MolecularDynamics):
                  logfile=None, loginterval=1, communicator=world,
                  rng=None, append_trajectory=False,meta_dyn=True,cvs=None,
                  std_dev=0.1, bias_height=0.001, interval_size= 10, bias_factor=5,
-                 output_file = None,well_temp,stretch=False):
+                 output_file = None,well_temp,stretch=False,input_file=None):
         """
         Parameters:
 
@@ -515,13 +515,19 @@ class WT_Metadynamics(MolecularDynamics):
         self.output_file = output_file
         self.timestep = timestep
         self.well_temp=well_temp
-
-        if self.len_cvs == 1:
-            header = f"\t\t\t\t time \t\t CV1 \t\t std1 \t\t height \t\t biasfactor \n"
-        elif self.len_cvs == 2:
-            header = f"\t\t\t\t time \t\t CV1 \t\t CV2 \t\t std1 \t\t std2 \t\t height \t\t biasfactor \n"
+        self.input_file = input_file
+        if self.input_file != None:
+            if self.len_cvs == 1:
+                header = f"#\t Height={self.bias_height}, Pace={self.interval_size}, Step_size={self.timestep}, CV_Number=1, Bias_factor={self.bias_factor}, WT={self.well_temp}, Stretch={self.stretch} \n\t\t\t\t time \t\t CV1 \t\t std1 \t\t height \t\t biasfactor \n"
+            elif self.len_cvs == 2:
+                header = f"#\t Height={self.bias_height}, Pace={self.interval_size}, Step_size={self.timestep}, CV_Number=2, Bias_factor={self.bias_factor}, WT={self.well_temp}, Stretch={self.stretch} \n\t\t\t\t time \t\t CV1 \t\t CV2 \t\t std1 \t\t std2 \t\t height \t\t biasfactor \n"
+            else:
+                raise Exception("Currently Metadynamics is only avaliable for one or two CVs")
         else:
-            raise Exception("Currently Metadynamics is only avaliable for one or two CVs")
+            self.output_file=self.input_file
+            if self.len_cvs!=1 or self.len_cvs!=2:
+                raise Exception("Currently Metadynamics is only avaliable for one or two CVs")
+            
         
         if self.output_file != None:
             with open(self.output_file, "w") as file:
@@ -569,8 +575,7 @@ class WT_Metadynamics(MolecularDynamics):
             if self.meta_dyn == True:                # This is a great question! The reason is that when
                 #print(self.nsteps, 'update the calc')# The calc gets updated all saved forces and energies get lost!
                 atoms.calc =self.meta_dyn_calc  #So updating the calc in the step it self do not make sense
-
-        
+                        
         if forces is None:
             forces = atoms.get_forces(md=True)
             #print('Forces: ',forces,"E ",atoms.get_total_energy(),atoms.get_calculator())
