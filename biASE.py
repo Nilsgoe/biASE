@@ -4,7 +4,7 @@ import jax.numpy as jnp
 from jax import jit
 from jax import grad ,jacfwd,jacrev
 import warnings
-
+import jax
 
 class Direct_General_Bias_Calculator(Calculator):
     """ This a class of general bias calculator it can calculate energy, force. For doing so a bias function and a function that defines the variables for the bais function
@@ -168,6 +168,7 @@ class General_Bias_Calculator(Calculator):
     
     def update_function(self, bias_function,use_jit=True):
         self.use_jit = use_jit
+        jax.devices()
         if self.use_jit:
             self.bias_function = jit(bias_function)
             self.deriv_bias_function = jit(grad(self.bias_function))
