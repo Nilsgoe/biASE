@@ -14,7 +14,7 @@ def read_hills_file(file_path):
     # Skip header lines starting with "#!"
     data = []
     for line in lines:
-        if line.startswith("#!"):
+        if line.startswith("#!") or "time" in line:
             continue
         data.append([float(x) for x in line.split()])
 
