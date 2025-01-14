@@ -168,8 +168,8 @@ class General_Bias_Calculator(Calculator):
     
     def update_function(self, bias_function,use_jit=True):
         self.use_jit = use_jit
-        jax.devices()
         if self.use_jit:
+            jax.clear_caches()
             self.bias_function = jit(bias_function)
             self.deriv_bias_function = jit(grad(self.bias_function))
             #self.hessian_bias_funtion = jit(self.calc_hessian(self.bias_function))
