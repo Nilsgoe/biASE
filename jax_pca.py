@@ -2,14 +2,14 @@ import jax.numpy as jnp
 from jax import jit
 
 class PCA:
-    def __init__(self, num_components):
+    def __init__(self, n_components):
         """
         Initialize PCA with the number of components.
 
         Parameters:
         - num_components: int, number of principal components to retain.
         """
-        self.num_components = num_components
+        self.num_components = n_components
         self.mean = None
         self.components = None
         self.explained_variance = None
@@ -44,10 +44,11 @@ class PCA:
         # Keep only the top components
         self.explained_variance = eigenvalues[:self.num_components]
         self.components = eigenvectors[:, :self.num_components]
-
+        total_variance = jnp.sum(eigenvalues)
+        self.explained_variance_ratio_ = self.explained_variance / total_variance
         # Store the components for easy access (similar to sklearn)
-        self.components_ = self.components
-
+        self.components_ = self.components.T
+        self.mean_=self.mean
         return self
 
     #@jit
