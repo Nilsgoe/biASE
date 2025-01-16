@@ -528,9 +528,9 @@ class WT_Metadynamics(MolecularDynamics):
         
         if self.input_file == None:
             if self.len_cvs == 1:
-                header = f"#\t Height={self.bias_height}, Pace={self.interval_size}, Step_size={self.timestep/units.fs}, CV_Number=1, Bias_factor={self.bias_factor}, WT={self.well_temp/units.kB}, Stretch={self.stretch} \n\t\t\t\t time \t\t\t CV1 \t\t\t\t std1 \t\t\t height \t\t biasfactor \n"
+                header = f"#!\t Height={self.bias_height}, Pace={self.interval_size}, Step_size={self.timestep/units.fs}, CV_Number=1, Bias_factor={self.bias_factor}, WT={self.well_temp/units.kB}, Stretch={self.stretch} \n\t\t\t\t time \t\t\t CV1 \t\t\t\t std1 \t\t\t height \t\t biasfactor \n"
             elif self.len_cvs == 2:
-                header = f"#\t Height={self.bias_height}, Pace={self.interval_size}, Step_size={self.timestep/units.fs}, CV_Number=2, Bias_factor={self.bias_factor}, WT={self.well_temp/units.kB}, Stretch={self.stretch} \n\t\t\t\t time \t\t\t CV1 \t\t\t\t CV2 \t\t\t\t std1 \t\t\t std2 \t\t\t height \t\t biasfactor \n"
+                header = f"!#\t Height={self.bias_height}, Pace={self.interval_size}, Step_size={self.timestep/units.fs}, CV_Number=2, Bias_factor={self.bias_factor}, WT={self.well_temp/units.kB}, Stretch={self.stretch} \n\t\t\t\t time \t\t\t CV1 \t\t\t\t CV2 \t\t\t\t std1 \t\t\t std2 \t\t\t height \t\t biasfactor \n"
             else:
                 raise Exception("Currently Metadynamics is only avaliable for one or two CVs")
             if self.output_file != None:
