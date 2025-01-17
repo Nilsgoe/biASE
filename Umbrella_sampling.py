@@ -5,11 +5,11 @@ from ase.calculators.mixing import SumCalculator
 
 class UmbrellaMD:
     def __init__(self,
+        atoms,
         cv_function,
         x0,
         k,
         md_method,
-        atoms
     ):
         """
         Initialize the umbrella sampling.
@@ -23,7 +23,7 @@ class UmbrellaMD:
         """
         self.atoms = atoms
         self.cv_function = cv_function
-        self.len_cvs = len(list(self.cv_function(atoms.get_positions())))
+        self.len_cvs =jnp.size(self.cv_function(atoms.get_positions()))
         self.k = k
         self.x0 = x0
         self.positions = atoms.get_positions()
@@ -34,7 +34,10 @@ class UmbrellaMD:
             raise ValueError("Please set a calculator for the atoms object")
         
         self.setup_umbrella_potential()
-        
+
+    def optimize_in_window(self,fmax=0.05,max_steps=500):
+        BFGS(self.atoms).run(fmax=fmax,steps=max_steps)  
+            
     def setup_umbrella_potential(self):
         if self.len_cvs == 1:
             umbrella_potential = General_Bias_Calculator(
@@ -76,25 +79,28 @@ class UmbrellaMD:
 
 
 # Example usage
-'''if __name__ == "__main__":
-    from ase import Atoms
-    from ase.md.verlet import VelocityVerlet
+if __name__ == "__main__":
+    from ase.io import read
+    from mace.calculators import mace_off
+    import jax.numpy as jnp
+    from ase.optimize import BFGS
+    from ase.md.langevin import Langevin
+    from ase import units
 
-    # Define a simple collective variable (e.g., distance between two atoms)
-    def distance_cv(system):
-        return np.linalg.norm(system.get_positions()[0] - system.get_positions()[1])
 
-    # Create a system and set up umbrella sampling
-    atoms = Atoms("H2", positions=[[0, 0, 0], [0, 0, 0.7]])
-    integrator = VelocityVerlet(atoms, timestep=1.0)
 
-    umbrella = UmbrellaSampling(
-        system=atoms,
-        collective_variable=distance_cv,
-        k=10.0,
-        target_value=1.0,
-        temperature=300.0,
-    )
+    def compute_cv(positions):
+        # Indices: 2 for O, 3 for C5, 1 for C2, and 5 for C3
+        d_O4H8 = jnp.linalg.norm(positions[4] - positions[8]) 
+        d_O3H8 = jnp.linalg.norm(positions[3] - positions[8]) 
+        return d_O4H8 -d_O3H8
 
-    umbrella.sample(n_steps=1000, integrator=integrator, output_interval=100)
-    print("Bias energies:", umbrella.get_bias_energies())'''
+    mace_calc_dis = mace_off(model="large",dispersion=True)
+    atoms1 = read("optimized_malonaldehyde_initial.xyz")
+    atoms = atoms1.copy()
+    atoms.calc = mace_calc_dis
+    UMD = UmbrellaMD(atoms=atoms,cv_function=compute_cv,x0=compute_cv(atoms1.positions)+.5,k=50,md_method=Langevin(atoms, timestep=.5 * units.fs, temperature_K=293, friction=0.1, trajectory='umd.traj',fixcm=False))
+
+    UMD.optimize_in_window(fmax=0.05,max_steps=500)
+    UMD.run(2000)
+    
