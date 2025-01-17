@@ -126,3 +126,62 @@ class PCA:
         cov_matrix = (self.components *
                       self.explained_variance) @ self.components.T
         return cov_matrix
+
+
+
+def kpca_transform(X_new, X_train, kernel, components, eigenvalues, gamma=1.0, degree=3, coef0=1):
+    """
+    Transform new data points using kernel PCA.
+
+    Parameters
+    ----------
+    X_new : array-like, shape (n_samples, n_features)
+        New data points to transform.
+    X_train : array-like, shape (n_train_samples, n_features)
+        Training data used to compute the kernel PCA.
+    kernel : str
+        Kernel type ('linear', 'rbf', 'poly').
+    components : array-like, shape (n_train_samples, n_components)
+        Eigenvectors of the kernel PCA.
+    eigenvalues : array-like, shape (n_components,)
+        Eigenvalues associated with the eigenvectors.
+    gamma : float, optional
+        Parameter for RBF and polynomial kernels (default: 1.0).
+    degree : int, optional
+        Degree for polynomial kernel (default: 3).
+    coef0 : float, optional
+        Independent term in polynomial kernel (default: 1).
+
+    Returns
+    -------
+    X_new_transformed : array, shape (n_samples, n_components)
+        Transformed data points in the kernel PCA space.
+    """
+    # Define kernel functions
+    def compute_kernel(X1, X2):
+        if kernel == 'linear':
+            return jnp.dot(X1, X2.T)
+        elif kernel == 'rbf':
+            sq_dist = jnp.sum(X1**2, axis=1, keepdims=True) - 2 * jnp.dot(X1, X2.T) + jnp.sum(X2**2, axis=1)
+            return jnp.exp(-gamma * sq_dist)
+        elif kernel == 'poly':
+            return (gamma * jnp.dot(X1, X2.T) + coef0) ** degree
+        else:
+            raise ValueError("Unsupported kernel type. Use 'linear', 'rbf', or 'poly'.")
+
+    # Compute the kernel matrix between X_new and X_train
+    K = compute_kernel(X_new, X_train)
+    
+    # Center the kernel matrix
+    n_train = X_train.shape[0]
+    n_new = X_new.shape[0]
+    one_n_train = jnp.ones((n_train, n_train)) / n_train
+    one_n_new = jnp.ones((n_new, n_train)) / n_train
+    K_centered = K - jnp.dot(one_n_new, compute_kernel(X_train, X_train)) - jnp.dot(K, one_n_train) + jnp.dot(one_n_new, jnp.dot(compute_kernel(X_train, X_train), one_n_train))
+
+    # Scale the eigenvectors
+    non_zeros = eigenvalues > 1e-12  # Handle numerical precision
+    scaled_components = components[:, non_zeros] / jnp.sqrt(eigenvalues[non_zeros])
+
+    # Transform the new data
+    return jnp.dot(K_centered, scaled_components)
