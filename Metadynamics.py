@@ -717,9 +717,12 @@ class WT_Metadynamics(MolecularDynamics):
                 if self.nsteps<self.interval_size:
                     self.bias_potential = self.bias_setup(self.cvs)
                 else:
+                    if self.nsteps_total % self.interval_size*100 ==0:  
+                        self.bias_update(clear_jit_cache=True)
                     #print(self.nsteps, " Update Bias")
-                    self.bias_update()
-                
+                    else:
+                        self.bias_update()
+
                 #print(self.position_array)
                 self.meta_dyn_calc = LinearCombinationCalculator([self.main_potential,self.bias_potential],[1.,1.])
                 #end = time.time()
@@ -752,11 +755,11 @@ class WT_Metadynamics(MolecularDynamics):
             
         return self.gaussian_bias
     
-    def bias_update(self):
+    def bias_update(self,clear_jit_cache=False):
         if self.len_cvs ==1 :
-            self.bias_potential.update_function(self.gaussian_1D,use_jit=True)
+            self.bias_potential.update_function(self.gaussian_1D,use_jit=True,clear_jit_cache=clear_jit_cache)
         if self.len_cvs ==2 :
-            self.bias_potential.update_function(self.gaussian_2D,use_jit=True)
+            self.bias_potential.update_function(self.gaussian_2D,use_jit=True,clear_jit_cache=clear_jit_cache)
     
     def gaussian_1D(self,cvs): ### here with jax numpy
         """ 

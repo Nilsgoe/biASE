@@ -153,7 +153,7 @@ class General_Bias_Calculator(Calculator):
             
             self.cv_function = jit(cv_function)
             self.deriv_cv = jit(jacfwd(cv_function))
-            
+            self.cv_function_ = cv_function
             #self.hessian_bias_funtion = jit(self.calc_hessian(self.bias_function))
 
         else:
@@ -166,10 +166,13 @@ class General_Bias_Calculator(Calculator):
             #self.hessian_bias_funtion = self.calc_hessian(self.bias_function)
 
     
-    def update_function(self, bias_function,use_jit=True):
+    def update_function(self, bias_function,use_jit=True,clear_jit_cache=False):
         self.use_jit = use_jit
         if self.use_jit:
-            jax.clear_caches()
+            if clear_jit_cache == True:
+                jax.clear_caches()
+                self.cv_function = jit(self.cv_function_)
+                self.deriv_cv = jit(jacfwd(self.cv_function_))
             self.bias_function = jit(bias_function)
             self.deriv_bias_function = jit(grad(self.bias_function))
             #self.hessian_bias_funtion = jit(self.calc_hessian(self.bias_function))
