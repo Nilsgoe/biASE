@@ -603,7 +603,7 @@ class WT_Metadynamics(MolecularDynamics):
             if self.len_cvs == 1:
                 print("1D")
                 self.times, self.cv1s, self.std1, self.heights, self.biasfactor = data_jax.T
-                self.old_means = self.cv1s
+                self.old_means = self.cv1s.reshape(-1,1)
                 self.std_dev=[self.std1[0]]
             elif self.len_cvs == 2:
                 print("2D")
@@ -705,9 +705,11 @@ class WT_Metadynamics(MolecularDynamics):
                         #print(self.previous_portential)
                     if self.len_cvs ==2:    
                         self.previous_portential = self.gaussian_2D(self.current_cvs) # was current_cvs = self.cvs(atoms.get_positions())
-                    print("Reg ", np.exp(-self.previous_portential/(self.well_temp*self.bias_factor)))
+                    #print("Reg ", np.exp(-self.previous_portential/(self.well_temp*self.bias_factor)))
                     self.regulation_factor=np.vstack([self.regulation_factor, np.exp(-self.previous_portential/(self.well_temp*self.bias_factor))] ) #instead of self.temp
                     print("Reg_f ",self.regulation_factor)
+                    print("Old_means:", self.old_means)
+                    print("Old_Pot:",self.previous_portential)
                     #print(self.previous_portential,self.regulation_factor[-1])
                     #print("Old Means: ",self.old_means, " New Mean: ", self.cvs(atoms.get_positions()))
                     self.old_means = np.vstack([self.old_means, self.current_cvs]) # save only cv instead of position!!! # was current_cvs = self.cvs(atoms.get_positions())
