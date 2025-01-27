@@ -528,9 +528,9 @@ class WT_Metadynamics(MolecularDynamics):
         
         if self.input_file == None:
             if self.len_cvs == 1:
-                header = f"#!\t Height={self.bias_height}, Pace={self.interval_size}, Step_size={self.timestep/units.fs}, CV_Number=1, Bias_factor={self.bias_factor}, WT={self.well_temp/units.kB}, Stretch={self.stretch} \n\t\t\t\t time \t\t\t CV1 \t\t\t\t std1 \t\t\t height \t\t biasfactor \n"
+                header = f"#!\t Height={self.bias_height}, Pace={self.interval_size}, Step_size={self.timestep/units.fs}, CV_Number=1, Bias_factor={self.bias_factor}, WT={self.well_temp/units.kB}, Stretch={self.stretch} \n\t\t\t\t time \t\t\t CV1 \t\t\t\t std1 \t\t\t height \t\t biasfactor \t regularizationfactor\n"
             elif self.len_cvs == 2:
-                header = f"!#\t Height={self.bias_height}, Pace={self.interval_size}, Step_size={self.timestep/units.fs}, CV_Number=2, Bias_factor={self.bias_factor}, WT={self.well_temp/units.kB}, Stretch={self.stretch} \n\t\t\t\t time \t\t\t CV1 \t\t\t\t CV2 \t\t\t\t std1 \t\t\t std2 \t\t\t height \t\t biasfactor \n"
+                header = f"!#\t Height={self.bias_height}, Pace={self.interval_size}, Step_size={self.timestep/units.fs}, CV_Number=2, Bias_factor={self.bias_factor}, WT={self.well_temp/units.kB}, Stretch={self.stretch} \n\t\t\t\t time \t\t\t CV1 \t\t\t\t CV2 \t\t\t\t std1 \t\t\t std2 \t\t\t height \t\t biasfactor \tregularizationfactor\n"
             else:
                 raise Exception("Currently Metadynamics is only avaliable for one or two CVs")
             if self.output_file != None:
@@ -602,12 +602,12 @@ class WT_Metadynamics(MolecularDynamics):
             data_jax = jnp.array(data)
             if self.len_cvs == 1:
                 print("1D")
-                self.times, self.cv1s, self.std1, self.heights, self.biasfactor = data_jax.T
+                self.times, self.cv1s, self.std1, self.heights, self.biasfactor,self.regulation_factor = data_jax.T
                 self.old_means = self.cv1s.reshape(-1,1)
                 self.std_dev=[self.std1[0]]
             elif self.len_cvs == 2:
                 print("2D")
-                self.times, self.cv1s, self.cv2s, self.std1, self.std2, self.heights, self.biasfactor = data_jax.T
+                self.times, self.cv1s, self.cv2s, self.std1, self.std2, self.heights, self.biasfactor,self.regulation_factor = data_jax.T
                 self.std_dev=[self.std1[0],self.std2[0]]
                 self.old_means = np.column_stack((self.cv1s, self.cv2s))
             else:
@@ -618,7 +618,7 @@ class WT_Metadynamics(MolecularDynamics):
             self.modified_heights = np.concatenate(([0], self.heights[:-1]))
             if self.well_temp!=None:
                 print("Well-Tempered Metadynamics")
-                self.regulation_factor=np.exp(-self.heights/(self.modified_heights*self.bias_factor)).reshape(-1,1)
+                self.regulation_factor=self.regulation_factor .reshape(-1,1)
                 print("Reg ", self.regulation_factor)
         elif self.input_file==None:
             self.nsteps_input=0
@@ -701,6 +701,7 @@ class WT_Metadynamics(MolecularDynamics):
                 else:
                     #print(self.temp,self.well_temp)
                     if self.len_cvs ==1:
+                        print(self.current_cvs,self.old_means,self.regulation_factor[-1],self.bias_height)
                         self.previous_portential = self.gaussian_1D(self.current_cvs)# was current_cvs = self.cvs(atoms.get_positions())
                         #print(self.previous_portential)
                     if self.len_cvs ==2:    
@@ -714,7 +715,8 @@ class WT_Metadynamics(MolecularDynamics):
                     #print("Old Means: ",self.old_means, " New Mean: ", self.cvs(atoms.get_positions()))
                     self.old_means = np.vstack([self.old_means, self.current_cvs]) # save only cv instead of position!!! # was current_cvs = self.cvs(atoms.get_positions())
                     #print(self.old_means)
-
+                    print("Pot:",self.gaussian_1D(self.current_cvs))
+                    #exit()
                 #print(self.regulation_factor)
                 if self.nsteps<self.interval_size:
                     self.bias_potential = self.bias_setup(self.cvs)
@@ -734,9 +736,9 @@ class WT_Metadynamics(MolecularDynamics):
                 if self.output_file != None:
                         with open(self.output_file, "+a") as file:
                             if self.len_cvs ==1:
-                                file.write(f'\t\t\t\t {self.nsteps_total*self.timestep/(units.fs):>7.2f} \t\t {self.current_cvs[0]:.8f} \t\t {self.std_dev[0]:.4f} \t\t {(self.bias_factor/(self.bias_factor-1))*self.bias_height*self.regulation_factor[-1][0]:.8f} \t\t {self.bias_factor}\n')
+                                file.write(f'\t\t\t\t {self.nsteps_total*self.timestep/(units.fs):>7.2f} \t\t {self.current_cvs[0]:.8f} \t\t {self.std_dev[0]:.4f} \t\t {(self.bias_factor/(self.bias_factor-1))*self.bias_height*self.regulation_factor[-1][0]:.8f} \t\t {self.bias_factor}\t {self.regulation_factor}\n')
                             else:
-                                file.write(f'\t\t\t\t {self.nsteps_total*self.timestep/(units.fs):>7.2f} \t\t {self.current_cvs[0]:.8f} \t\t {self.current_cvs[1]:.8f} \t\t {self.std_dev[0]:.4f} \t\t {self.std_dev[1]:.4f} \t\t {(self.bias_factor/(self.bias_factor-1))*self.bias_height*self.regulation_factor[-1][0]:.8f} \t\t {self.bias_factor}\n')
+                                file.write(f'\t\t\t\t {self.nsteps_total*self.timestep/(units.fs):>7.2f} \t\t {self.current_cvs[0]:.8f} \t\t {self.current_cvs[1]:.8f} \t\t {self.std_dev[0]:.4f} \t\t {self.std_dev[1]:.4f} \t\t {(self.bias_factor/(self.bias_factor-1))*self.bias_height*self.regulation_factor[-1][0]:.8f} \t\t {self.bias_factor}{self.regulation_factor}\n')
                             file.close
                     #\t{self.current_cvs[1]}\t{self.std_dev}
         else:
