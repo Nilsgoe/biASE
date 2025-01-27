@@ -736,9 +736,9 @@ class WT_Metadynamics(MolecularDynamics):
                 if self.output_file != None:
                         with open(self.output_file, "+a") as file:
                             if self.len_cvs ==1:
-                                file.write(f'\t\t\t\t {self.nsteps_total*self.timestep/(units.fs):>7.2f} \t\t {self.current_cvs[0]:.8f} \t\t {self.std_dev[0]:.4f} \t\t {(self.bias_factor/(self.bias_factor-1))*self.bias_height*self.regulation_factor[-1][0]:.8f} \t\t {self.bias_factor}\t {self.regulation_factor}\n')
+                                file.write(f'\t\t\t\t {self.nsteps_total*self.timestep/(units.fs):>7.2f} \t\t {self.current_cvs[0]:.8f} \t\t {self.std_dev[0]:.4f} \t\t {(self.bias_factor/(self.bias_factor-1))*self.bias_height*self.regulation_factor[-1][0]:.8f} \t\t {self.bias_factor}\t {self.regulation_factor[-1][0]}\n')
                             else:
-                                file.write(f'\t\t\t\t {self.nsteps_total*self.timestep/(units.fs):>7.2f} \t\t {self.current_cvs[0]:.8f} \t\t {self.current_cvs[1]:.8f} \t\t {self.std_dev[0]:.4f} \t\t {self.std_dev[1]:.4f} \t\t {(self.bias_factor/(self.bias_factor-1))*self.bias_height*self.regulation_factor[-1][0]:.8f} \t\t {self.bias_factor}{self.regulation_factor}\n')
+                                file.write(f'\t\t\t\t {self.nsteps_total*self.timestep/(units.fs):>7.2f} \t\t {self.current_cvs[0]:.8f} \t\t {self.current_cvs[1]:.8f} \t\t {self.std_dev[0]:.4f} \t\t {self.std_dev[1]:.4f} \t\t {(self.bias_factor/(self.bias_factor-1))*self.bias_height*self.regulation_factor[-1][0]:.8f} \t\t {self.bias_factor}{self.regulation_factor[-1][0]}\n')
                             file.close
                     #\t{self.current_cvs[1]}\t{self.std_dev}
         else:
