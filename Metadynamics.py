@@ -614,8 +614,6 @@ class WT_Metadynamics(MolecularDynamics):
                 raise Exception("Currently Metadynamics is only implemented for one or two CVs")        
             self.nsteps_input = len(self.times)*self.interval_size
             self.bias_factor=self.biasfactor[0]
-            # Modify self.heights by removing the last element and prepending 0
-            self.modified_heights = np.concatenate(([0], self.heights[:-1]))
             if self.well_temp!=None:
                 print("Well-Tempered Metadynamics")
                 self.regulation_factor=self.regulation_factor .reshape(-1,1)
@@ -715,7 +713,10 @@ class WT_Metadynamics(MolecularDynamics):
                     #print("Old Means: ",self.old_means, " New Mean: ", self.cvs(atoms.get_positions()))
                     self.old_means = np.vstack([self.old_means, self.current_cvs]) # save only cv instead of position!!! # was current_cvs = self.cvs(atoms.get_positions())
                     #print(self.old_means)
-                    print("Pot:",self.gaussian_1D(self.current_cvs))
+                    if self.len_cvs ==1:
+                        print("Pot:",self.gaussian_1D(self.current_cvs))
+                    if self.len_cvs ==2:    
+                        print("Pot:",self.gaussian_2D(self.current_cvs))
                     #exit()
                 #print(self.regulation_factor)
                 if self.nsteps<self.interval_size:
