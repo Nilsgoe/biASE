@@ -728,7 +728,7 @@ class WT_Metadynamics(MolecularDynamics):
                     
                 
                     # Update specific entries
-                    self.regulation_factor[int(self.nsteps_total/self.interval_size)] = np.exp(-self.previous_portential/(self.well_temp*self.bias_factor))
+                    self.regulation_factor[int(self.nsteps_total/self.interval_size)] = np.exp(-self.previous_portential/(self.well_temp*(self.bias_factor-1)))
                     self.old_means[int(self.nsteps_total/self.interval_size), :] = self.current_cvs
 
                     # Ensure arrays remain the same size
