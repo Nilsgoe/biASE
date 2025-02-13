@@ -2,8 +2,8 @@ import jax.numpy as jnp
 from jax import random
 
 # Assume that we have a JAX version of the Clebsch-Gordan function available:
-from clebsch_gordan_jax import clebsch_gordan_jax as cg_jax
-from get_atomic_basis import compute_atomic_basis
+from ace.clebsch_gordan_jax import clebsch_gordan_jax as cg_jax
+from ace.get_atomic_basis import compute_atomic_basis
 # (The function cg_jax(l1, l2, l3) returns an array of shape (2*l1+1, 2*l2+1, 2*l3+1)
 # corresponding to the 3j–symbols (up to phase factors) or derived Clebsch–Gordan coefficients.)
 
@@ -64,7 +64,6 @@ def compute_B2(A_dict, n_max=3):
         B2[l] = B2_l
     return B2
  
-
 ###############################################################################
 # 3. Third-body (3B) invariant:
 ###############################################################################
@@ -105,7 +104,53 @@ def compute_B3(A_dict, triplet,n_max):
     B3 = jnp.einsum('iam,ibn,icp,mnp->iabc', A1, A2, A3, cg_tensor)
     # Here, a = atom index, i, j, k label the radial channels.
     return B3
-
+def get_full_ace(positions, neighbor_list, n_rbf, l_max, x_max, n_max):
+    """
+    Compute the full ACE descriptor from positions and a neighbor list.
+    
+    For each l = 0,1,...,l_max, compute the atomic basis using compute_atomic_basis.
+    Then compute B1 (from l=0), B2 invariants (from l>=1), and B3 invariants (from all triplets)
+    and finally concatenate them into one descriptor per atom.
+    
+    Returns an array of shape (N_atoms, D).
+    """
+    A_dict = {}
+    for l in range(l_max + 1):
+        # Compute atomic basis for angular momentum l.
+        A_dict[l] = compute_atomic_basis(positions, neighbor_list, n_rbf, l, x_max)
+    
+    # Compute B1 (l=0)
+    B1 = compute_B1(A_dict)  # shape: (N, n_rbf_0)
+    
+    # Compute B2 invariants for l >= 1.
+    B2_list = []
+    for l in range(1, l_max + 1):
+        if l in A_dict:
+            B2_l = compute_B2({l: A_dict[l]}, n_max)[l]  # shape (N, n_new, n_new)
+            B2_list.append(B2_l)
+    if B2_list:
+        # Flatten the extra dimensions.
+        B2_array = jnp.concatenate([b.reshape(b.shape[0], -1) for b in B2_list], axis=1)
+    else:
+        B2_array = jnp.zeros((B1.shape[0], 0))
+    
+    # Compute B3 invariants for all triplets (l1,l2,l3) with each l in [0, l_max]
+    B3_list = []
+    valid_ls = [l for l in range(l_max + 1)]
+    for l1 in valid_ls:
+        for l2 in valid_ls:
+            for l3 in valid_ls:
+                B3_val = compute_B3(A_dict, (l1, l2, l3), n_max)
+                # Flatten the last three dimensions.
+                B3_list.append(B3_val.reshape(B3_val.shape[0], -1))
+    if B3_list:
+        B3_array = jnp.concatenate(B3_list, axis=1)
+    else:
+        B3_array = jnp.zeros((B1.shape[0], 0))
+    
+    # Concatenate B1, B2, and B3 along the feature axis.
+    full_ace = jnp.concatenate([B1, B2_array, B3_array], axis=1)
+    return full_ace
 ###############################################################################
 # 4 & 5. Fourth-body (4B) and Fifth-body (5B) invariants:
 ###############################################################################
@@ -141,6 +186,9 @@ def compute_B5(A_dict, quintuplet, coupling_tensor_5):
     A5 = A_dict[l5]
     B5 = jnp.einsum('aim, ajn, akp, alq, arm, mnpqr -> aijklm', A1, A2, A3, A4, A5, coupling_tensor_5)
     return B5
+
+
+    
 
 ###############################################################################
 # Example usage:
