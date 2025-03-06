@@ -18,7 +18,7 @@ def spherical_harmonics(x: jnp.ndarray,
     # l = 1 (first-order)
     sqrt3 = jnp.sqrt(3.0)
     sh_1_0 = sqrt3 * x
-    sh_1_1 = sqrt3 * y@jax.jit(static_argnums=(3,))
+    sh_1_1 = sqrt3 * y
     sh_1_2 = sqrt3 * z
     if lmax == 1:
         return jnp.stack([sh_0_0, sh_1_0, sh_1_1, sh_1_2], axis=-1)

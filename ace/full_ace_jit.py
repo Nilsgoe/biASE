@@ -69,7 +69,7 @@ def compute_B3_jit(A1, A2, A3, cg_tensor):
     """
     return jnp.einsum('iam,ibn,icp,mnp->iabc', A1, A2, A3, cg_tensor)
 
-def compute_B3(A_dict, triplet, n_max):
+def compute_B3(A_dict, triplet, n_max,cg_cache):
     """
     Compute the three-body invariant for a given triplet of angular momenta (l1, l2, l3).
     For each angular momentum channel, we limit the radial dimension to n_max.
@@ -88,10 +88,10 @@ def compute_B3(A_dict, triplet, n_max):
     A1 = A1[:, :n1, :]  # shape: (N_atoms, n1, 2*l1+1)
     A2 = A2[:, :n2, :]  # shape: (N_atoms, n2, 2*l2+1)
     A3 = A3[:, :n3, :]  # shape: (N_atoms, n3, 2*l3+1)
-    
+    t_=time.time()
     # Obtain the Clebsch–Gordan coupling tensor.
-    cg_tensor = cg_jax(l1, l2, l3)  # shape: (2*l1+1, 2*l2+1, 2*l3+1)
-    
+    cg_tensor = cg_cache[triplet]#cg_jax(l1, l2, l3)  # shape: (2*l1+1, 2*l2+1, 2*l3+1)
+    #print("Time for CG tensor computation:",time.time()-t_)
     # Contract over the magnetic indices.
     B3 = compute_B3_jit(A1, A2, A3, cg_tensor)
     return B3  # shape: (N_atoms, n1, n2, n3)
@@ -99,7 +99,8 @@ def compute_B3(A_dict, triplet, n_max):
 ###############################################################################
 # 4. Full ACE descriptor:
 ###############################################################################
-def get_full_ace(positions, neighbor_list, n_rbf, l_max, x_max, n_max):
+import time
+def get_full_ace(positions, neighbor_list, n_rbf, l_max, x_max, n_max,cg_cache):
     """
     Compute the full ACE descriptor from positions and a neighbor list.
     
@@ -111,15 +112,19 @@ def get_full_ace(positions, neighbor_list, n_rbf, l_max, x_max, n_max):
     """
     # Compute atomic basis for each l.
     A_dict = {}
+    t1=time.time()
     for l in range(l_max + 1):
         A_dict[l] = compute_atomic_basis(positions, neighbor_list, n_rbf, l, x_max)
-    
+    t2=time.time()
+    #print("Time for atomic basis computation:",t2-t1)
     # Compute B1 invariant (l=0).
+    t3=time.time()
     B1 = compute_B1(A_dict[0])  # shape: (N_atoms, n_rbf)
-    
+    #print("Time for B1 computation:",time.time()-t3)
     # Compute B2 invariants for l >= 1 and flatten their extra dimensions.
     B2_dict = compute_B2(A_dict, n_max)
     B2_list = []
+    t4=time.time()
     for l in sorted(B2_dict.keys()):
         B2_l = B2_dict[l]  # shape: (N_atoms, n_new, n_new)
         B2_list.append(B2_l.reshape(B2_l.shape[0], -1))
@@ -127,20 +132,22 @@ def get_full_ace(positions, neighbor_list, n_rbf, l_max, x_max, n_max):
         B2_array = jnp.concatenate(B2_list, axis=1)
     else:
         B2_array = jnp.zeros((B1.shape[0], 0))
-    
+    #print("Time for B2 computation:",time.time()-t4)
     # Compute B3 invariants for all triplets (l1, l2, l3) with each l in [0, l_max].
     B3_list = []
     valid_ls = list(range(l_max + 1))
+    t5=time.time()  
     for l1 in valid_ls:
         for l2 in valid_ls:
             for l3 in valid_ls:
-                B3_val = compute_B3(A_dict, (l1, l2, l3), n_max)
-                B3_list.append(B3_val.reshape(B3_val.shape[0], -1))
+                if abs(l1 - l2) <= l3 <= l1 + l2:
+                    B3_val = compute_B3(A_dict, (l1, l2, l3), n_max,cg_cache)
+                    B3_list.append(B3_val.reshape(B3_val.shape[0], -1))
     if B3_list:
         B3_array = jnp.concatenate(B3_list, axis=1)
     else:
         B3_array = jnp.zeros((B1.shape[0], 0))
-    
+    #print("Time for B3 computation:",time.time()-t5)
     # Concatenate B1, B2, and B3 along the feature axis.
     full_ace = jnp.concatenate([B1, B2_array, B3_array], axis=1)
     return full_ace
@@ -196,13 +203,19 @@ if __name__ == "__main__":
     
     # Compute B^(3) for a specific triplet, e.g. (l1,l2,l3)=(0,1,1) if valid.
     l_max=2
+    
+    import numpy as np
+    # Load the precomputed CG tensors.
+    loaded = np.load("cg_cache.npz", allow_pickle=True)
+    # Convert the keys (which are strings) back to tuples if necessary.
+    cg_cache = {eval(key): jnp.array(loaded[key]) for key in loaded.files}
     for l1, l2, l3 in product(range(l_max + 1), repeat=3):
         if not (abs(l1 - l2) <= l3 <= l1 + l2) or ((l1 + l2 + l3) % 2 != 0):
             continue
         triplet = (l1, l2, l3)
     # (Note: For l1=0, the A_dict[0] has only one m component.)
     #try:
-        B3 = compute_B3(A_dict, triplet,n_max=2)
+        B3 = compute_B3(A_dict, triplet,n_max=2,cg_cache=cg_cache)
         print(f"B^(3) for triplet {triplet} shape:", B3.shape)
     #except Exception as e:
     #    print("B^(3) computation encountered an error:", e)

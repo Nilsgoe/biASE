@@ -67,7 +67,7 @@ def compute_B2(A_dict, n_max=3):
 ###############################################################################
 # 3. Third-body (3B) invariant:
 ###############################################################################
-def compute_B3(A_dict, triplet,n_max):
+def compute_B3(A_dict, triplet,n_max,cg_cache):
     """
     Compute the three-body invariant for a given triplet of angular momenta.
     triplet is a tuple (l1, l2, l3). For each such triplet, we assume that the atomic
@@ -92,7 +92,7 @@ def compute_B3(A_dict, triplet,n_max):
     A3 = A3[:, :n3, :]  # new shape (N, n3, 2*l3+1)
     # Obtain the coupling tensor (here assumed to be the real 3j-symbols)
     # cg_tensor has shape (2*l1+1, 2*l2+1, 2*l3+1)
-    cg_tensor = cg_jax(l1, l2, l3)
+    cg_tensor = cg_cache[triplet]#cg_jax(l1, l2, l3)
     
     # Now contract over the magnetic indices:
     # Using einsum notation:
@@ -104,7 +104,7 @@ def compute_B3(A_dict, triplet,n_max):
     B3 = jnp.einsum('iam,ibn,icp,mnp->iabc', A1, A2, A3, cg_tensor)
     # Here, a = atom index, i, j, k label the radial channels.
     return B3
-def get_full_ace(positions, neighbor_list, n_rbf, l_max, x_max, n_max):
+def get_full_ace(positions, neighbor_list, n_rbf, l_max, x_max, n_max,cg_cache):
     """
     Compute the full ACE descriptor from positions and a neighbor list.
     
@@ -140,9 +140,10 @@ def get_full_ace(positions, neighbor_list, n_rbf, l_max, x_max, n_max):
     for l1 in valid_ls:
         for l2 in valid_ls:
             for l3 in valid_ls:
-                B3_val = compute_B3(A_dict, (l1, l2, l3), n_max)
-                # Flatten the last three dimensions.
-                B3_list.append(B3_val.reshape(B3_val.shape[0], -1))
+                if abs(l1 - l2) <= l3 <= l1 + l2:
+                    B3_val = compute_B3(A_dict, (l1, l2, l3), n_max,cg_cache)
+                    # Flatten the last three dimensions.
+                    B3_list.append(B3_val.reshape(B3_val.shape[0], -1))
     if B3_list:
         B3_array = jnp.concatenate(B3_list, axis=1)
     else:
@@ -196,6 +197,7 @@ def compute_B5(A_dict, quintuplet, coupling_tensor_5):
 if __name__ == "__main__":
     from neighborhood_mace_jax import get_neighborhood
     from itertools import product
+    import numpy as np
     # For demonstration we fabricate a dummy atomic basis A_dict.
     # Suppose we have N_atoms=2, and for each l we have N_rbf=3 radial channels.
     N_atoms = 4
@@ -236,6 +238,8 @@ if __name__ == "__main__":
     for l, B2_l in B2.items():
         print(f"B^(2) for l={l} shape:", B2_l.shape)
     
+    loaded = np.load("cg_cache.npz", allow_pickle=True)
+    cg_cache = {eval(key): jnp.array(loaded[key]) for key in loaded.files}
     # Compute B^(3) for a specific triplet, e.g. (l1,l2,l3)=(0,1,1) if valid.
     l_max=2
     for l1, l2, l3 in product(range(l_max + 1), repeat=3):
@@ -244,7 +248,7 @@ if __name__ == "__main__":
         triplet = (l1, l2, l3)
     # (Note: For l1=0, the A_dict[0] has only one m component.)
     #try:
-        B3 = compute_B3(A_dict, triplet,n_max=2)
+        B3 = compute_B3(A_dict, triplet,n_max=2,cg_cache=cg_cache)
         print(f"B^(3) for triplet {triplet} shape:", B3.shape)
     #except Exception as e:
     #    print("B^(3) computation encountered an error:", e)

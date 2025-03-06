@@ -1,8 +1,8 @@
 import jax.numpy as jnp
 from jax import random
 import math
-from radial import bessel
-from sp_harm_jax import spherical_harmonics
+from ace.radial import bessel
+from ace.sp_harm_jax import spherical_harmonics
 # Assume these functions are defined elsewhere:
 # - bessel(r, n_rbf, x_max): returns an array of shape (n_rbf,)
 # - spherical_harmonics((x, y, z), l_max): returns an array of shape ((l_max+1)**2,)

@@ -34,7 +34,7 @@ def compute_phi(r, rhat, n_rbf, l, x_max):
     return phi
 
 # Mark neighbor_list and n_rbf as static for compute_atomic_basis.
-jit_static_basis = partial(jax.jit, static_argnums=(1,2,3,4))
+jit_static_basis = partial(jax.jit, static_argnums=(2,3,4))
 @jit_static_basis
 def compute_atomic_basis(positions, neighbor_list, n_rbf, l, x_max):
     # Convert the neighbor_list (which should be hashable, e.g. a tuple of tuples)
