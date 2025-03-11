@@ -29,14 +29,14 @@ class UmbrellaMD:
         self.positions = atoms.get_positions()
         self.md_method = md_method
         try:
-            self.orignial_calc=atoms.get_calculator()
+            self.orignial_calc=atoms.calc
         except:
             raise ValueError("Please set a calculator for the atoms object")
         
         self.setup_umbrella_potential()
 
-    def optimize_in_window(self,fmax=0.05,max_steps=500):
-        BFGS(self.atoms).run(fmax=fmax,steps=max_steps)  
+    def optimize_in_window(self,optimizer,fmax,max_steps,**kwargs):
+        optimizer(atoms=self.atoms,**kwargs).run(fmax=fmax,steps=max_steps)  
             
     def setup_umbrella_potential(self):
         if self.len_cvs == 1:
@@ -56,7 +56,7 @@ class UmbrellaMD:
         else:
             raise ValueError("Only 1D and 2D CVs are supported")
         self.full_potential = SumCalculator([self.orignial_calc, umbrella_potential])
-        self.atoms.set_calculator(self.full_potential)
+        self.atoms.calc =self.full_potential
         
     def setup_new_window(self,x0,k):
         self.k = k
@@ -83,7 +83,7 @@ if __name__ == "__main__":
     from ase.io import read
     from mace.calculators import mace_off
     import jax.numpy as jnp
-    from ase.optimize import BFGS
+    from ase.optimize import BFGS, FIRE
     from ase.md.langevin import Langevin
     from ase import units
 
@@ -101,6 +101,6 @@ if __name__ == "__main__":
     atoms.calc = mace_calc_dis
     UMD = UmbrellaMD(atoms=atoms,cv_function=compute_cv,x0=compute_cv(atoms1.positions)+.5,k=50,md_method=Langevin(atoms, timestep=.5 * units.fs, temperature_K=293, friction=0.1, trajectory='umd.traj',fixcm=False))
 
-    UMD.optimize_in_window(fmax=0.05,max_steps=500)
-    UMD.run(2000)
+    UMD.optimize_in_window(optimizer=BFGS,fmax=0.05,max_steps=500,logfile="BFGS.log")
+    UMD.run(200)
     
