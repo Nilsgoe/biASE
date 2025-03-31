@@ -526,12 +526,16 @@ class WT_Metadynamics(MolecularDynamics):
         self.well_temp=well_temp
         self.input_file = input_file
         self.max_bias = max_bias
-        
+        if temperature_K != None:
+            self.init_temp = temperature_K*units.kB
+        elif temperature != None:
+            self.init_temp = temperature
+            
         if self.input_file == None:
             if self.len_cvs == 1:
-                header = f"#!\t Height={self.bias_height}, Pace={self.interval_size}, Step_size={self.timestep/units.fs}, CV_Number=1, Bias_factor={self.bias_factor}, WT={self.well_temp/units.kB}, Stretch={self.stretch} \n\t\t\t\t time \t\t\t CV1 \t\t\t\t std1 \t\t\t height \t\t biasfactor \t regularizationfactor\n"
+                header = f"#!\t Height={self.bias_height}, Pace={self.interval_size}, Step_size={self.timestep/units.fs}, CV_Number=1, Bias_factor={self.bias_factor}, WT={self.well_temp}, Stretch={self.stretch} \n\t\t\t\t time \t\t\t CV1 \t\t\t\t std1 \t\t\t height \t\t biasfactor \t regularizationfactor\n"
             elif self.len_cvs == 2:
-                header = f"!#\t Height={self.bias_height}, Pace={self.interval_size}, Step_size={self.timestep/units.fs}, CV_Number=2, Bias_factor={self.bias_factor}, WT={self.well_temp/units.kB}, Stretch={self.stretch} \n\t\t\t\t time \t\t\t CV1 \t\t\t\t CV2 \t\t\t\t std1 \t\t\t std2 \t\t\t height \t\t biasfactor \tregularizationfactor\n"
+                header = f"!#\t Height={self.bias_height}, Pace={self.interval_size}, Step_size={self.timestep/units.fs}, CV_Number=2, Bias_factor={self.bias_factor}, WT={self.well_temp}, Stretch={self.stretch} \n\t\t\t\t time \t\t\t CV1 \t\t\t\t CV2 \t\t\t\t std1 \t\t\t std2 \t\t\t height \t\t biasfactor \tregularizationfactor\n"
             else:
                 raise Exception("Currently Metadynamics is only avaliable for one or two CVs")
             if self.output_file != None:
@@ -616,10 +620,12 @@ class WT_Metadynamics(MolecularDynamics):
                 raise Exception("Currently Metadynamics is only implemented for one or two CVs")        
             self.nsteps_input = len(self.times)*self.interval_size
             self.bias_factor=self.biasfactor[0]
-            if self.well_temp!=None:
+            if self.well_temp==True:
                 print("Well-Tempered Metadynamics")
                 self.regulation_factor_=self.regulation_factor_.reshape(-1,1)
                 print("Reg ", self.regulation_factor_)
+            else:
+                raise Exception("This needs well_temp=True")
         elif self.input_file==None:
             self.nsteps_input=0
             
@@ -728,7 +734,7 @@ class WT_Metadynamics(MolecularDynamics):
                     
                 
                     # Update specific entries
-                    self.regulation_factor[int(self.nsteps_total/self.interval_size)] = np.exp(-self.previous_portential/(self.well_temp*(self.bias_factor-1)))
+                    self.regulation_factor[int(self.nsteps_total/self.interval_size)] = np.exp(-self.previous_portential/(self.init_temp*(self.bias_factor-1)))
                     self.old_means[int(self.nsteps_total/self.interval_size), :] = self.current_cvs
 
                     # Ensure arrays remain the same size
