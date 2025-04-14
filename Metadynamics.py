@@ -414,7 +414,7 @@ class WT_Metadynamics(MolecularDynamics):
                  logfile=None, loginterval=1, communicator=world,
                  rng=None, append_trajectory=False,meta_dyn=True,cvs=None,
                  std_dev=[0.1,], bias_height=0.001, interval_size= 10, bias_factor=5,
-                 output_file = None,well_temp,stretch=False,input_file=None,max_bias=10000):
+                 output_file = None,well_temp=True,stretch=False,input_file=None,max_bias=10000):
         """
         Parameters:
 
@@ -692,7 +692,7 @@ class WT_Metadynamics(MolecularDynamics):
         #e2 = time.time()
         # Second part of RATTLE taken care of here
         atoms.set_momenta(self.v * self.masses)
-        #start = time.time()
+        start = time.time()
         ### We update here the potenial if wanted!
         if self.nsteps % self.interval_size ==0:
             self.nsteps_total= self.nsteps + self.nsteps_input #Here it should be checked if self.nsteps gets reseted
@@ -719,10 +719,10 @@ class WT_Metadynamics(MolecularDynamics):
                 else:
                     #print(self.temp,self.well_temp)
                     if self.len_cvs ==1:
-                        self.previous_portential = self.gaussian_1D(self.current_cvs)# was current_cvs = self.cvs(atoms.get_positions())
+                        self.previous_portential = self.gaussian_1D(self.current_cvs,self.old_means.flatten(),self.regulation_factor.flatten())# was current_cvs = self.cvs(atoms.get_positions())
                         #print(self.previous_portential)
                     if self.len_cvs ==2:    
-                        self.previous_portential = self.gaussian_2D(self.current_cvs) # was current_cvs = self.cvs(atoms.get_positions())
+                        self.previous_portential = self.gaussian_2D(self.current_cvs,self.old_means.flatten()) # was current_cvs = self.cvs(atoms.get_positions())
                     '''print("Reg ", np.exp(-self.previous_portential/(self.well_temp*self.bias_factor)))
                     self.regulation_factor=np.vstack([self.regulation_factor, np.exp(-self.previous_portential/(self.well_temp*self.bias_factor))] ) #instead of self.temp
                     print("Reg_f ",self.regulation_factor)
@@ -732,26 +732,27 @@ class WT_Metadynamics(MolecularDynamics):
                     #print(self.old_means)'''
 
                     
-                
+                    print("Reg_f:", self.regulation_factor.shape)#[:int(self.nsteps_total/self.interval_size)+1])
+                    
                     # Update specific entries
                     self.regulation_factor[int(self.nsteps_total/self.interval_size)] = np.exp(-self.previous_portential/(self.init_temp*(self.bias_factor-1)))
                     self.old_means[int(self.nsteps_total/self.interval_size), :] = self.current_cvs
 
                     # Ensure arrays remain the same size
-                    print("Reg_f:", self.regulation_factor[:int(self.nsteps_total/self.interval_size)+1])
-                    print("Old_means:", self.old_means[:int(self.nsteps_total/self.interval_size)+1])
-                    print("Old_Pot:",self.previous_portential)
+                    #print("Reg_f:", self.regulation_factor[:int(self.nsteps_total/self.interval_size)+1])
+                    #print("Old_means:", self.old_means[:int(self.nsteps_total/self.interval_size)+1])
+                    #print("Old_Pot:",self.previous_portential)
                 #print(self.regulation_factor)
                 if self.nsteps<self.interval_size:
                     self.bias_potential = self.bias_setup(self.cvs)
-                ''' 
+                 
                 else:
-                    if self.nsteps_total % self.interval_size*100 ==0:  
+                    if self.nsteps_total % (self.interval_size*100) ==0:  
+                        print("Clear JIT Cache",)
                         self.bias_update(clear_jit_cache=True)
-                    #print(self.nsteps, " Update Bias")
                     else:
                         self.bias_update()
-                '''
+                
                 #print(self.position_array)
                 if self.nsteps<self.interval_size:
                     self.meta_dyn_calc = LinearCombinationCalculator([self.main_potential,self.bias_potential],[1.,1.])
@@ -780,7 +781,8 @@ class WT_Metadynamics(MolecularDynamics):
         
         """
         if self.len_cvs ==1:
-            self.gaussian_bias = General_Bias_Calculator(cvs,self.gaussian_1D,use_jit=True)
+            print("Means:",self.old_means.flatten())
+            self.gaussian_bias = General_Bias_Calculator(cvs,self.gaussian_1D,static_arg1=self.old_means.flatten(),static_arg2=self.regulation_factor.flatten(),use_jit=True)
         elif self.len_cvs ==2:
             self.gaussian_bias = General_Bias_Calculator(cvs,self.gaussian_2D,use_jit=True)
         else:
@@ -789,12 +791,14 @@ class WT_Metadynamics(MolecularDynamics):
         return self.gaussian_bias
     
     def bias_update(self,clear_jit_cache=False):
+        print(self.nsteps, " Update Bias")
+
         if self.len_cvs ==1 :
-            self.bias_potential.update_function(self.gaussian_1D,use_jit=True,clear_jit_cache=clear_jit_cache)
+            self.bias_potential.update_function(self.gaussian_1D,self.old_means.flatten(),self.regulation_factor.flatten(),clear_jit_cache=clear_jit_cache)#self.gaussian_1D,use_jit=True,clear_jit_cache=clear_jit_cache)
         if self.len_cvs ==2 :
             self.bias_potential.update_function(self.gaussian_2D,use_jit=True,clear_jit_cache=clear_jit_cache)
     
-    def gaussian_1D(self,cvs): ### here with jax numpy
+    def gaussian_1D(self,cvs,mean_cvs,reg_f): ### here with jax numpy
         """ 
         x (float or numpy array): Input value(s) for evaluating the Gaussian.
             mean (float or numpy array): Mean(s) of the Gaussian(s).
@@ -807,13 +811,13 @@ class WT_Metadynamics(MolecularDynamics):
             this function needs to be tested! seems to be the same as the above numpy version but forces need to be tested
         """ 
         x = cvs[0]
-        mean_cvs = self.old_means.flatten()
+        #mean_cvs = self.old_means.flatten()
         std_dev = self.std_dev[0]
-
+        #print(mean_cvs[:20])
         # Evaluate the Gaussian for all means at once using numpy broadcasting
         gaussian_vals = (jnp.exp(-0.5*((x - mean_cvs[:, jnp.newaxis])**2/(std_dev**2)))).flatten()
         #print("Gauss: ",gaussian_vals)
-        reg_f =self.regulation_factor.flatten()
+        #reg_f =self.regulation_factor.flatten()
         #print("reg in Bias",reg_f)
         #print('regulation_factor: ', self.previous_portential,self.nsteps)
         # Sum over all means and return the result

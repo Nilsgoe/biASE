@@ -44,12 +44,12 @@ class Direct_General_Bias_Calculator(Calculator):
         self.args = args
         if self.use_jit:
             self.bias_function = jit(bias_function)
-            self.deriv_bias_function = jit(grad(self.bias_function))
+            self.deriv_bias_function = jit(grad(self.bias_function,argnums=0))
             #self.hessian_bias_funtion = jit(self.calc_hessian(self.bias_function))
 
         else:
             self.bias_function = bias_function
-            self.deriv_bias_function = grad(self.bias_function)
+            self.deriv_bias_function = grad(self.bias_function,argnums=0)
         
     def calculate(self, atoms=None, properties=['energy','forces'], system_changes=all_changes):
         """ Calculates all the implemented properties. This method needs to call the .calculate form the Calculator class"""
@@ -141,12 +141,14 @@ class General_Bias_Calculator(Calculator):
                         Allows just in time compilation of all used functions and thier derivatives
     """
     implemented_properties=['energy','forces']#,'hessian']
-    def __init__(self, cv_function, bias_function, use_jit = True, **kwargs):
+    def __init__(self, cv_function, bias_function,static_arg1=None, static_arg2=None, use_jit = True, **kwargs):
         """ Sets up the Calculator from ase for example self.results or allows get_forces (and similar things) to work"""
         Calculator.__init__(self, **kwargs)
 
         self.use_jit = use_jit
-        
+        self.static_arg1=static_arg1
+        self.static_arg2=static_arg2
+        print("S:",self.static_arg1, self.static_arg2)
         if self.use_jit:
             self.bias_function = jit(bias_function)
             self.deriv_bias_function = jit(grad(self.bias_function))
@@ -166,20 +168,26 @@ class General_Bias_Calculator(Calculator):
             #self.hessian_bias_funtion = self.calc_hessian(self.bias_function)
 
     
-    def update_function(self, bias_function,use_jit=True,clear_jit_cache=False):
-        self.use_jit = use_jit
-        if self.use_jit:
-            if clear_jit_cache == True:
-                jax.clear_caches()
-                self.cv_function = jit(self.cv_function_)
-                self.deriv_cv = jit(jacfwd(self.cv_function_))
-            self.bias_function = jit(bias_function)
-            self.deriv_bias_function = jit(grad(self.bias_function))
-            #self.hessian_bias_funtion = jit(self.calc_hessian(self.bias_function))
+    def update_function(self,bias_function,static_arg1,static_arg2,clear_jit_cache=False):#, bias_function,use_jit=True,clear_jit_cache=False):
+        
+        #self.use_jit = use_jit
+        self.static_arg1=static_arg1
+        self.static_arg2=static_arg2
+        if clear_jit_cache==True:
+            print("Clearing")
+            if self.use_jit:
+                if clear_jit_cache == True:
+                    jax.clear_caches()
+                    self.cv_function = jit(self.cv_function)
+                    self.deriv_cv = jit(jacfwd(self.cv_function))
+                self.bias_function = jit(bias_function)
+                self.deriv_bias_function = jit(grad(self.bias_function))
+                #self.hessian_bias_funtion = jit(self.calc_hessian(self.bias_function))
 
-        else:
-            self.bias_function = bias_function
-            self.deriv_bias_function = grad(self.bias_function)
+            else:
+                self.bias_function = bias_function
+                self.deriv_bias_function = grad(self.bias_function)
+        
 
     def calculate(self, atoms=None, properties=['energy','forces'], system_changes=all_changes):
         """ Calculates all the implemented properties. This method needs to call the .calculate form the Calculator class"""
@@ -191,7 +199,12 @@ class General_Bias_Calculator(Calculator):
         atoms_pos = atoms.get_positions()
         #print("in calc pos:", atoms_pos)
         self.cvs = self.cv_function(atoms_pos)
-        self.energy += np.array(self.bias_function(self.cvs))
+        if self.static_arg1 is None and self.static_arg2 is None:
+            self.energy += np.array(self.bias_function(self.cvs))
+        elif self.static_arg2 is None:
+            self.energy += np.array(self.bias_function(self.cvs,self.static_arg1))
+        else :
+            self.energy += np.array(self.bias_function(self.cvs,self.static_arg1,self.static_arg2))
         #print("cv: ",self.cvs, "E: ",self.energy)
 
         if 'forces' in properties: 
@@ -238,7 +251,13 @@ class General_Bias_Calculator(Calculator):
     
     def calc_deriv_E_to_cvs(self,cvs):
         ''' Calcs derivative of the Energy with respect to the collective variable'''
-        return np.asarray(self.deriv_bias_function(cvs)) # dimensions (collective variables)
+        if self.static_arg1 is None and self.static_arg2 is None:
+
+            return np.asarray(self.deriv_bias_function(cvs)) # dimensions (collective variables)
+        elif self.static_arg2 is None:
+            return np.asarray(self.deriv_bias_function(cvs,self.static_arg1))
+        else:
+            return np.asarray(self.deriv_bias_function(cvs,self.static_arg1,self.static_arg2)) # dimensions (collective variables)
     
     
     def calc_deriv_cvs(self,atoms_pos):
