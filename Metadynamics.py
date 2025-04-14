@@ -722,7 +722,7 @@ class WT_Metadynamics(MolecularDynamics):
                         self.previous_portential = self.gaussian_1D(self.current_cvs,self.old_means.flatten(),self.regulation_factor.flatten())# was current_cvs = self.cvs(atoms.get_positions())
                         #print(self.previous_portential)
                     if self.len_cvs ==2:    
-                        self.previous_portential = self.gaussian_2D(self.current_cvs,self.old_means.flatten()) # was current_cvs = self.cvs(atoms.get_positions())
+                        self.previous_portential = self.gaussian_2D(self.current_cvs,self.old_means.flatten(),self.regulation_factor.flatten()) # was current_cvs = self.cvs(atoms.get_positions())
                     '''print("Reg ", np.exp(-self.previous_portential/(self.well_temp*self.bias_factor)))
                     self.regulation_factor=np.vstack([self.regulation_factor, np.exp(-self.previous_portential/(self.well_temp*self.bias_factor))] ) #instead of self.temp
                     print("Reg_f ",self.regulation_factor)
@@ -784,7 +784,7 @@ class WT_Metadynamics(MolecularDynamics):
             print("Means:",self.old_means.flatten())
             self.gaussian_bias = General_Bias_Calculator(cvs,self.gaussian_1D,static_arg1=self.old_means.flatten(),static_arg2=self.regulation_factor.flatten(),use_jit=True)
         elif self.len_cvs ==2:
-            self.gaussian_bias = General_Bias_Calculator(cvs,self.gaussian_2D,use_jit=True)
+            self.gaussian_bias = General_Bias_Calculator(cvs,self.gaussian_2D,static_arg1=self.old_means.flatten(),static_arg2=self.regulation_factor.flatten(),use_jit=True)
         else:
             raise TypeError("CVs need to be inform of an array with one or two entrys! e.g. jnp.array([cv1,cv2]).")
             
@@ -796,7 +796,7 @@ class WT_Metadynamics(MolecularDynamics):
         if self.len_cvs ==1 :
             self.bias_potential.update_function(self.gaussian_1D,self.old_means.flatten(),self.regulation_factor.flatten(),clear_jit_cache=clear_jit_cache)#self.gaussian_1D,use_jit=True,clear_jit_cache=clear_jit_cache)
         if self.len_cvs ==2 :
-            self.bias_potential.update_function(self.gaussian_2D,use_jit=True,clear_jit_cache=clear_jit_cache)
+            self.bias_potential.update_function(self.gaussian_2D,static_arg1=self.old_means.flatten(),static_arg2=self.regulation_factor.flatten(),clear_jit_cache=clear_jit_cache)
     
     def gaussian_1D(self,cvs,mean_cvs,reg_f): ### here with jax numpy
         """ 
@@ -838,7 +838,7 @@ class WT_Metadynamics(MolecularDynamics):
     
 
     
-    def gaussian_2D(self,cvs):
+    def gaussian_2D(self,cvs,mean_cvs,reg_f):
         """
         Evaluate a 2D Gaussian potential energy surface for the given input collective variable(s) (cvs).
 
@@ -849,7 +849,7 @@ class WT_Metadynamics(MolecularDynamics):
             float or numpy array: Value(s) of the 2D Gaussian at the given input(s), summed over all means.
         """
         x, y = cvs
-        mean_cvs= self.old_means
+        #mean_cvs= self.old_means
         std_dev = self.std_dev
         
         #print(mean_cvs[:, 0])
@@ -867,7 +867,7 @@ class WT_Metadynamics(MolecularDynamics):
         print('Reg_factor: ',regulation_factor, 'T: ', self.temp)'''
         #print('HI')
         #print(self.regulation_factor)
-        reg_f =self.regulation_factor.flatten()
+        #reg_f =self.regulation_factor.flatten()
         ''' print('gauss: ',gaussian_vals)
         print('reg: ' ,reg_f)
         print('gauss times reg',gaussian_vals*reg_f)
