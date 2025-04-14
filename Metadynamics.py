@@ -722,7 +722,7 @@ class WT_Metadynamics(MolecularDynamics):
                         self.previous_portential = self.gaussian_1D(self.current_cvs,self.old_means.flatten(),self.regulation_factor.flatten())# was current_cvs = self.cvs(atoms.get_positions())
                         #print(self.previous_portential)
                     if self.len_cvs ==2:    
-                        self.previous_portential = self.gaussian_2D(self.current_cvs,self.old_means.flatten(),self.regulation_factor.flatten()) # was current_cvs = self.cvs(atoms.get_positions())
+                        self.previous_portential = self.gaussian_2D(self.current_cvs,self.old_means,self.regulation_factor.flatten()) # was current_cvs = self.cvs(atoms.get_positions())
                     '''print("Reg ", np.exp(-self.previous_portential/(self.well_temp*self.bias_factor)))
                     self.regulation_factor=np.vstack([self.regulation_factor, np.exp(-self.previous_portential/(self.well_temp*self.bias_factor))] ) #instead of self.temp
                     print("Reg_f ",self.regulation_factor)
@@ -771,8 +771,8 @@ class WT_Metadynamics(MolecularDynamics):
         else:
             pass
         e=time.time()
-        with open("time.txt", "+a") as file:
-            file.write(f'{self.nsteps}\t{e-s}\n')
+        #with open("time.txt", "+a") as file:
+        #    file.write(f'{self.nsteps}\t{e-s}\n')
         return forces
 
     def bias_setup(self,cvs):
@@ -784,7 +784,7 @@ class WT_Metadynamics(MolecularDynamics):
             print("Means:",self.old_means.flatten())
             self.gaussian_bias = General_Bias_Calculator(cvs,self.gaussian_1D,static_arg1=self.old_means.flatten(),static_arg2=self.regulation_factor.flatten(),use_jit=True)
         elif self.len_cvs ==2:
-            self.gaussian_bias = General_Bias_Calculator(cvs,self.gaussian_2D,static_arg1=self.old_means.flatten(),static_arg2=self.regulation_factor.flatten(),use_jit=True)
+            self.gaussian_bias = General_Bias_Calculator(cvs,self.gaussian_2D,static_arg1=self.old_means,static_arg2=self.regulation_factor.flatten(),use_jit=True)
         else:
             raise TypeError("CVs need to be inform of an array with one or two entrys! e.g. jnp.array([cv1,cv2]).")
             
@@ -796,7 +796,7 @@ class WT_Metadynamics(MolecularDynamics):
         if self.len_cvs ==1 :
             self.bias_potential.update_function(self.gaussian_1D,self.old_means.flatten(),self.regulation_factor.flatten(),clear_jit_cache=clear_jit_cache)#self.gaussian_1D,use_jit=True,clear_jit_cache=clear_jit_cache)
         if self.len_cvs ==2 :
-            self.bias_potential.update_function(self.gaussian_2D,static_arg1=self.old_means.flatten(),static_arg2=self.regulation_factor.flatten(),clear_jit_cache=clear_jit_cache)
+            self.bias_potential.update_function(self.gaussian_2D,static_arg1=self.old_means,static_arg2=self.regulation_factor.flatten(),clear_jit_cache=clear_jit_cache)
     
     def gaussian_1D(self,cvs,mean_cvs,reg_f): ### here with jax numpy
         """ 
