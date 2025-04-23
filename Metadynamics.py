@@ -747,7 +747,7 @@ class WT_Metadynamics(MolecularDynamics):
                     self.bias_potential = self.bias_setup(self.cvs)
                  
                 else:
-                    if self.nsteps_total % (self.interval_size*100) ==0:  
+                    if self.nsteps_total % (self.interval_size*100000) ==0:  
                         print("Clear JIT Cache",)
                         self.bias_update(clear_jit_cache=True)
                     else:
@@ -771,8 +771,8 @@ class WT_Metadynamics(MolecularDynamics):
         else:
             pass
         e=time.time()
-        #with open("time.txt", "+a") as file:
-        #    file.write(f'{self.nsteps}\t{e-s}\n')
+        with open("time.txt", "+a") as file:
+            file.write(f'{self.nsteps}\t{e-s}\n')
         return forces
 
     def bias_setup(self,cvs):
