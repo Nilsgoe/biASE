@@ -390,6 +390,62 @@ class Metadynamics(MolecularDynamics):
         #print(jnp.sum(gaussian_vals, axis=0)[0])
         return self.bias_height*jnp.sum(gaussian_vals,axis=0)#[0] 
 
+    def gaussian_1D_wrapped(self, cvs, mean_cvs, reg_f, bounds=(0.0, 360.0)):
+        """
+        1D periodic Gaussian with wrapping between bounds.
+
+        Args:
+            cvs: tuple or array-like of length 1 with current coordinate (x,).
+            mean_cvs: array of shape (n_means,) giving mean positions.
+            reg_f: array of shape (n_means,) giving weights for each mean.
+            bounds: tuple (low, high) defining periodic interval.
+
+        Returns:
+            Scalar: weighted sum of Gaussians at x, with periodic wrapping.
+        """
+        x = cvs[0]
+        std = self.std_dev[0]
+        low, high = bounds
+        period = high - low
+
+        # Compute minimal circular difference: bring difference into [-period/2, period/2)
+        diffs = (x - mean_cvs + 0.5 * period) % period - 0.5 * period
+        # Evaluate Gaussian
+        vals = jnp.exp(-0.5 * (diffs**2) / (std**2)).flatten()
+
+        if self.stretch:
+            vals = jnp.maximum(self.stretchA * vals + self.stretchB, 0.0)
+        return self.bias_height * jnp.sum(vals * reg_f)
+
+    def gaussian_2D_wrapped(self, cvs, mean_cvs, reg_f, bounds=((0.0, 360.0), (0.0, 360.0))):
+        """
+        2D periodic Gaussian with wrapping in each dimension.
+
+        Args:
+            cvs: tuple or array-like (x, y).
+            mean_cvs: array of shape (n_means, 2) giving mean positions.
+            reg_f: array of shape (n_means,) giving weights for each mean.
+            bounds: tuple of two (low, high) pairs for x and y dimensions.
+
+        Returns:
+            Scalar: weighted sum of Gaussians at (x, y) with periodic wrapping.
+        """
+        x, y = cvs
+        std_x, std_y = self.std_dev
+        (low_x, high_x), (low_y, high_y) = bounds
+        period_x = high_x - low_x
+        period_y = high_y - low_y
+
+        # Minimal circular differences in each dimension
+        dx = (x - mean_cvs[:, 0] + 0.5 * period_x) % period_x - 0.5 * period_x
+        dy = (y - mean_cvs[:, 1] + 0.5 * period_y) % period_y - 0.5 * period_y
+
+        # Evaluate 2D Gaussian
+        vals = jnp.exp(-0.5 * (dx**2) / (std_x**2) - 0.5 * (dy**2) / (std_y**2))
+
+        if self.stretch:
+            vals = jnp.maximum(self.stretchA * vals + self.stretchB, 0.0)
+        return self.bias_height * jnp.sum(vals * reg_f)
 
     def return_bias(self):
         return self.bias_potential
@@ -414,7 +470,7 @@ class WT_Metadynamics(MolecularDynamics):
                  logfile=None, loginterval=1, communicator=world,
                  rng=None, append_trajectory=False,meta_dyn=True,cvs=None,
                  std_dev=[0.1,], bias_height=0.001, interval_size= 10, bias_factor=5,
-                 output_file = None,well_temp=True,stretch=False,input_file=None,max_bias=10000):
+                 output_file = None,well_temp=True,stretch=False,input_file=None,wrapping=False,bounds=None,max_bias=10000):
         """
         Parameters:
 
@@ -718,6 +774,7 @@ class WT_Metadynamics(MolecularDynamics):
                     #print(self.previous_portential)
                 else:
                     #print(self.temp,self.well_temp)
+                    
                     if self.len_cvs ==1:
                         self.previous_portential = self.gaussian_1D(self.current_cvs,self.old_means.flatten(),self.regulation_factor.flatten())# was current_cvs = self.cvs(atoms.get_positions())
                         #print(self.previous_portential)
@@ -816,17 +873,7 @@ class WT_Metadynamics(MolecularDynamics):
         #print(mean_cvs[:20])
         # Evaluate the Gaussian for all means at once using numpy broadcasting
         gaussian_vals = (jnp.exp(-0.5*((x - mean_cvs[:, jnp.newaxis])**2/(std_dev**2)))).flatten()
-        #print("Gauss: ",gaussian_vals)
-        #reg_f =self.regulation_factor.flatten()
-        #print("reg in Bias",reg_f)
-        #print('regulation_factor: ', self.previous_portential,self.nsteps)
-        # Sum over all means and return the result
-        #print(jnp.sum(gaussian_vals, axis=0)[0])
-        #print('Previous Potential: ',  self.bias_height*self.regulation_factor*jnp.sum(gaussian_vals, axis=0)[0],self.nsteps)
-        '''print('gauss: ',gaussian_vals)
-        print('reg: ' ,reg_f)
-        print('gauss times reg',gaussian_vals*reg_f)
-        print('sum of gauss times reg ',jnp.sum(gaussian_vals*reg_f, axis=0))'''
+ 
         if self.stretch == True:
             #print(x - mean_cvs)
             streched_gaussian_vals=self.stretchA*gaussian_vals+self.stretchB
@@ -856,22 +903,7 @@ class WT_Metadynamics(MolecularDynamics):
         # Evaluate the Gaussian for all means at once using numpy broadcasting
         gaussian_vals = jnp.exp(-0.5*((x - mean_cvs[:, 0])**2/(std_dev[0]**2)) \
                                 -0.5*((y - mean_cvs[:, 1])**2/(std_dev[1]**2)))
-        #regulation_factor=jnp.exp(-self.previous_portential/(self.temp*self.bias_factor)) #the kB here is used to transform from K to eV!
-        #print('regulation_factor: ', self.previous_portential,self.nsteps)
-        #print(mean_cvs,cvs)
-        # Sum over all means and return the result
-        #print(jnp.sum(gaussian_vals, axis=0)[0])
         
-        '''print('Potential_NOW: ', self.bias_height*regulation_factor*jnp.sum(gaussian_vals,axis=0),self.nsteps)
-        print('Sum_Gaussian:', jnp.sum(gaussian_vals,axis=0), 'Previous Potential: ', self.previous_portential,self.nsteps)
-        print('Reg_factor: ',regulation_factor, 'T: ', self.temp)'''
-        #print('HI')
-        #print(self.regulation_factor)
-        #reg_f =self.regulation_factor.flatten()
-        ''' print('gauss: ',gaussian_vals)
-        print('reg: ' ,reg_f)
-        print('gauss times reg',gaussian_vals*reg_f)
-        print('sum of gauss times reg ',jnp.sum(gaussian_vals*reg_f, axis=0))'''
         if self.stretch ==True:
             streched_gaussian_vals=self.stretchA*gaussian_vals+self.stretchB
             streched_gaussian_vals=jnp.maximum(streched_gaussian_vals, 0)
@@ -880,6 +912,63 @@ class WT_Metadynamics(MolecularDynamics):
         
         return self.bias_height*jnp.sum(gaussian_vals*reg_f,axis=0)
 
+    def gaussian_1D_wrapped(self, cvs, mean_cvs, reg_f, bounds=(0.0, 360.0)):
+        """
+        1D periodic Gaussian with wrapping between bounds.
+
+        Args:
+            cvs: tuple or array-like of length 1 with current coordinate (x,).
+            mean_cvs: array of shape (n_means,) giving mean positions.
+            reg_f: array of shape (n_means,) giving weights for each mean.
+            bounds: tuple (low, high) defining periodic interval.
+
+        Returns:
+            Scalar: weighted sum of Gaussians at x, with periodic wrapping.
+        """
+        x = cvs[0]
+        std = self.std_dev[0]
+        low, high = bounds
+        period = high - low
+
+        # Compute minimal circular difference: bring difference into [-period/2, period/2)
+        diffs = (x - mean_cvs + 0.5 * period) % period - 0.5 * period
+        # Evaluate Gaussian
+        vals = jnp.exp(-0.5 * (diffs**2) / (std**2)).flatten()
+
+        if self.stretch:
+            vals = jnp.maximum(self.stretchA * vals + self.stretchB, 0.0)
+        return self.bias_height * jnp.sum(vals * reg_f)
+
+    def gaussian_2D_wrapped(self, cvs, mean_cvs, reg_f, bounds=((0.0, 360.0), (0.0, 360.0))):
+        """
+        2D periodic Gaussian with wrapping in each dimension.
+
+        Args:
+            cvs: tuple or array-like (x, y).
+            mean_cvs: array of shape (n_means, 2) giving mean positions.
+            reg_f: array of shape (n_means,) giving weights for each mean.
+            bounds: tuple of two (low, high) pairs for x and y dimensions.
+
+        Returns:
+            Scalar: weighted sum of Gaussians at (x, y) with periodic wrapping.
+        """
+        x, y = cvs
+        std_x, std_y = self.std_dev
+        (low_x, high_x), (low_y, high_y) = bounds
+        period_x = high_x - low_x
+        period_y = high_y - low_y
+
+        # Minimal circular differences in each dimension
+        dx = (x - mean_cvs[:, 0] + 0.5 * period_x) % period_x - 0.5 * period_x
+        dy = (y - mean_cvs[:, 1] + 0.5 * period_y) % period_y - 0.5 * period_y
+
+        # Evaluate 2D Gaussian
+        vals = jnp.exp(-0.5 * (dx**2) / (std_x**2) - 0.5 * (dy**2) / (std_y**2))
+
+        if self.stretch:
+            vals = jnp.maximum(self.stretchA * vals + self.stretchB, 0.0)
+        return self.bias_height * jnp.sum(vals * reg_f)
+    
         
     def return_bias(self):
         return self.bias_potential
@@ -889,3 +978,5 @@ class WT_Metadynamics(MolecularDynamics):
     
     def return_func(self):
         return self.old_means, self.regulation_factor
+
+
