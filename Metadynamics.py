@@ -390,7 +390,7 @@ class Metadynamics(MolecularDynamics):
         #print(jnp.sum(gaussian_vals, axis=0)[0])
         return self.bias_height*jnp.sum(gaussian_vals,axis=0)#[0] 
 
-    def gaussian_1D_wrapped(self, cvs, mean_cvs, reg_f, bounds=(0.0, 360.0)):
+    ''' def gaussian_1D_wrapped(self, cvs, mean_cvs, reg_f, bounds=((0.0, 360.0))):
         """
         1D periodic Gaussian with wrapping between bounds.
 
@@ -405,7 +405,7 @@ class Metadynamics(MolecularDynamics):
         """
         x = cvs[0]
         std = self.std_dev[0]
-        low, high = bounds
+        low, high = self.bounds[0]
         period = high - low
 
         # Compute minimal circular difference: bring difference into [-period/2, period/2)
@@ -432,7 +432,7 @@ class Metadynamics(MolecularDynamics):
         """
         x, y = cvs
         std_x, std_y = self.std_dev
-        (low_x, high_x), (low_y, high_y) = bounds
+        (low_x, high_x), (low_y, high_y) = self.bounds
         period_x = high_x - low_x
         period_y = high_y - low_y
 
@@ -446,7 +446,8 @@ class Metadynamics(MolecularDynamics):
         if self.stretch:
             vals = jnp.maximum(self.stretchA * vals + self.stretchB, 0.0)
         return self.bias_height * jnp.sum(vals * reg_f)
-
+    '''
+    
     def return_bias(self):
         return self.bias_potential
     
@@ -582,6 +583,8 @@ class WT_Metadynamics(MolecularDynamics):
         self.well_temp=well_temp
         self.input_file = input_file
         self.max_bias = max_bias
+        self.bounds = bounds
+        self.wrapping = wrapping
         if temperature_K != None:
             self.init_temp = temperature_K*units.kB
         elif temperature != None:
@@ -912,7 +915,7 @@ class WT_Metadynamics(MolecularDynamics):
         
         return self.bias_height*jnp.sum(gaussian_vals*reg_f,axis=0)
 
-    def gaussian_1D_wrapped(self, cvs, mean_cvs, reg_f, bounds=(0.0, 360.0)):
+    def gaussian_1D_wrapped(self, cvs, mean_cvs, reg_f, bounds=((0.0, 360.0))):
         """
         1D periodic Gaussian with wrapping between bounds.
 
@@ -927,7 +930,7 @@ class WT_Metadynamics(MolecularDynamics):
         """
         x = cvs[0]
         std = self.std_dev[0]
-        low, high = bounds
+        low, high = self.bounds[0]
         period = high - low
 
         # Compute minimal circular difference: bring difference into [-period/2, period/2)
@@ -954,7 +957,7 @@ class WT_Metadynamics(MolecularDynamics):
         """
         x, y = cvs
         std_x, std_y = self.std_dev
-        (low_x, high_x), (low_y, high_y) = bounds
+        (low_x, high_x), (low_y, high_y) = self.bounds
         period_x = high_x - low_x
         period_y = high_y - low_y
 
