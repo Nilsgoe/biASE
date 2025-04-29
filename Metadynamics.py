@@ -471,7 +471,7 @@ class WT_Metadynamics(MolecularDynamics):
                  logfile=None, loginterval=1, communicator=world,
                  rng=None, append_trajectory=False,meta_dyn=True,cvs=None,
                  std_dev=[0.1,], bias_height=0.001, interval_size= 10, bias_factor=5,
-                 output_file = None,well_temp=True,stretch=False,input_file=None,wrapping=False,bounds=None,max_bias=10000):
+                 output_file = None,well_temp=True,stretch=False,input_file=None,wrapping=None,bounds=None,max_bias=10000):
         """
         Parameters:
 
@@ -519,7 +519,12 @@ class WT_Metadynamics(MolecularDynamics):
             overwritten each time the dynamics is restarted from scratch.
             If True, the new structures are appended to the trajectory
             file instead.
-
+        meta_dyn: bool (optional)   
+        
+        wrapping: list of boolean based on the number of cvs
+        bounds:  tuple of tuples with the bounds for the cv
+                (low_cv1, high_cv1), (low_cv2, high_cv2)
+        
         The temperature and friction are normally scalars, but in principle one
         quantity per atom could be specified by giving an array.
 
@@ -585,6 +590,14 @@ class WT_Metadynamics(MolecularDynamics):
         self.max_bias = max_bias
         self.bounds = bounds
         self.wrapping = wrapping
+        
+        if self.wrapping == None:
+            self.wrapping = [False]*self.len_cvs
+        if self.len_cvs==1:
+            assert len(self.wrapping)==1, "wrapping needs to be a list with one boolean for 1D metadynamics"
+        if self.len_cvs==2:
+            assert len(self.wrapping)==2, "wrapping needs to be a list with two boolean for 2D metadynamics"
+            
         if temperature_K != None:
             self.init_temp = temperature_K*units.kB
         elif temperature != None:
@@ -870,19 +883,23 @@ class WT_Metadynamics(MolecularDynamics):
             
             this function needs to be tested! seems to be the same as the above numpy version but forces need to be tested
         """ 
-        x = cvs[0]
-        #mean_cvs = self.old_means.flatten()
-        std_dev = self.std_dev[0]
-        #print(mean_cvs[:20])
-        # Evaluate the Gaussian for all means at once using numpy broadcasting
-        gaussian_vals = (jnp.exp(-0.5*((x - mean_cvs[:, jnp.newaxis])**2/(std_dev**2)))).flatten()
- 
-        if self.stretch == True:
-            #print(x - mean_cvs)
-            streched_gaussian_vals=self.stretchA*gaussian_vals+self.stretchB
-            streched_gaussian_vals=jnp.maximum(streched_gaussian_vals, 0)
-            return self.bias_height*jnp.sum(reg_f*(streched_gaussian_vals),axis=0)
-        return self.bias_height*jnp.sum(gaussian_vals*reg_f, axis=0) # why [0] check that more - is necessay bc out put would be a 1D list with one entrence
+        if True in self.wrapping:
+            gaussian_vals = self.gaussian_1D_wrapped(cvs, mean_cvs, reg_f)
+            return gaussian_vals
+        else:
+            x = cvs[0]
+            #mean_cvs = self.old_means.flatten()
+            std_dev = self.std_dev[0]
+            #print(mean_cvs[:20])
+            # Evaluate the Gaussian for all means at once using numpy broadcasting
+            gaussian_vals = (jnp.exp(-0.5*((x - mean_cvs[:, jnp.newaxis])**2/(std_dev**2)))).flatten()
+    
+            if self.stretch == True:
+                #print(x - mean_cvs)
+                streched_gaussian_vals=self.stretchA*gaussian_vals+self.stretchB
+                streched_gaussian_vals=jnp.maximum(streched_gaussian_vals, 0)
+                return self.bias_height*jnp.sum(reg_f*(streched_gaussian_vals),axis=0)
+            return self.bias_height*jnp.sum(gaussian_vals*reg_f, axis=0) # why [0] check that more - is necessay bc out put would be a 1D list with one entrence
     
         
     
@@ -898,24 +915,28 @@ class WT_Metadynamics(MolecularDynamics):
         Returns:
             float or numpy array: Value(s) of the 2D Gaussian at the given input(s), summed over all means.
         """
-        x, y = cvs
-        #mean_cvs= self.old_means
-        std_dev = self.std_dev
-        
-        #print(mean_cvs[:, 0])
-        # Evaluate the Gaussian for all means at once using numpy broadcasting
-        gaussian_vals = jnp.exp(-0.5*((x - mean_cvs[:, 0])**2/(std_dev[0]**2)) \
-                                -0.5*((y - mean_cvs[:, 1])**2/(std_dev[1]**2)))
-        
-        if self.stretch ==True:
-            streched_gaussian_vals=self.stretchA*gaussian_vals+self.stretchB
-            streched_gaussian_vals=jnp.maximum(streched_gaussian_vals, 0)
-            #print(f'Stretch: {streched_gaussian_vals}')
-            return self.bias_height*jnp.sum(reg_f*(streched_gaussian_vals),axis=0)
-        
-        return self.bias_height*jnp.sum(gaussian_vals*reg_f,axis=0)
+        if True in self.wrapping:   
+            gaussian_vals = self.gaussian_2D_wrapped(cvs, mean_cvs, reg_f)
+            return gaussian_vals
+        else:
+            x, y = cvs
+            #mean_cvs= self.old_means
+            std_dev = self.std_dev
+            
+            #print(mean_cvs[:, 0])
+            # Evaluate the Gaussian for all means at once using numpy broadcasting
+            gaussian_vals = jnp.exp(-0.5*((x - mean_cvs[:, 0])**2/(std_dev[0]**2)) \
+                                    -0.5*((y - mean_cvs[:, 1])**2/(std_dev[1]**2)))
+            
+            if self.stretch ==True:
+                streched_gaussian_vals=self.stretchA*gaussian_vals+self.stretchB
+                streched_gaussian_vals=jnp.maximum(streched_gaussian_vals, 0)
+                #print(f'Stretch: {streched_gaussian_vals}')
+                return self.bias_height*jnp.sum(reg_f*(streched_gaussian_vals),axis=0)
+            
+            return self.bias_height*jnp.sum(gaussian_vals*reg_f,axis=0)
 
-    def gaussian_1D_wrapped(self, cvs, mean_cvs, reg_f, bounds=((0.0, 360.0))):
+    def gaussian_1D_wrapped(self, cvs, mean_cvs, reg_f):
         """
         1D periodic Gaussian with wrapping between bounds.
 
@@ -942,7 +963,7 @@ class WT_Metadynamics(MolecularDynamics):
             vals = jnp.maximum(self.stretchA * vals + self.stretchB, 0.0)
         return self.bias_height * jnp.sum(vals * reg_f)
 
-    def gaussian_2D_wrapped(self, cvs, mean_cvs, reg_f, bounds=((0.0, 360.0), (0.0, 360.0))):
+    def gaussian_2D_wrapped(self, cvs, mean_cvs, reg_f):
         """
         2D periodic Gaussian with wrapping in each dimension.
 
@@ -962,8 +983,15 @@ class WT_Metadynamics(MolecularDynamics):
         period_y = high_y - low_y
 
         # Minimal circular differences in each dimension
-        dx = (x - mean_cvs[:, 0] + 0.5 * period_x) % period_x - 0.5 * period_x
-        dy = (y - mean_cvs[:, 1] + 0.5 * period_y) % period_y - 0.5 * period_y
+        if self.wrapping[0]==True:
+            dx = (x - mean_cvs[:, 0] + 0.5 * period_x) % period_x - 0.5 * period_x
+        else:
+            dx = x - mean_cvs[:, 0]
+            
+        if self.wrapping[1]==True:
+            dy = (y - mean_cvs[:, 1] + 0.5 * period_y) % period_y - 0.5 * period_y
+        else:
+            dy = y - mean_cvs[:, 1]
 
         # Evaluate 2D Gaussian
         vals = jnp.exp(-0.5 * (dx**2) / (std_x**2) - 0.5 * (dy**2) / (std_y**2))
