@@ -471,7 +471,7 @@ class WT_Metadynamics(MolecularDynamics):
                  logfile=None, loginterval=1, communicator=world,
                  rng=None, append_trajectory=False,meta_dyn=True,cvs=None,
                  std_dev=[0.1,], bias_height=0.001, interval_size= 10, bias_factor=5,
-                 output_file = None,well_temp=True,stretch=False,input_file=None,wrapping=None,bounds=None,max_bias=10000):
+                 output_file = None,well_temp=True,stretch=False,input_file=None,wrapping=None,bounds=None,max_bias=20000):
         """
         Parameters:
 
