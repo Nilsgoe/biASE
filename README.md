@@ -67,6 +67,29 @@ Run them with:
 python -m unittest discover -s tests -v
 ```
 
+## Notebooks
+
+The repository also contains exploratory notebooks. They are useful as examples, but they are not the primary test source of truth.
+
+- `Umbrella_sampling_test.ipynb`
+  Still compatible with the current calculator.
+  It mostly uses the older notebook-style pattern of building umbrella biases with `General_Bias_Calculator` and `functools.partial(...)` instead of the newer `UmbrellaMD` helper.
+  That workflow still works, but new umbrella workflows should prefer `Umbrella_sampling.py`.
+
+- `Metadynamics_test.ipynb`
+  Mostly contains inline class definitions and experiments rather than importing the current module implementation.
+  It can still be useful for ideas and plots, but it should be treated as a historical notebook, not as a synchronized test of the current `Metadynamics.py`.
+
+- `Metadynamics_updated_testing.ipynb`
+  Also contains substantial inline metadynamics code and local experimentation.
+  It is closer in spirit to the current direct-bias workflow, but it is still not a guaranteed reflection of the exact current module code.
+
+Practical recommendation:
+
+1. Use `biASE.py`, `Umbrella_sampling.py`, and `Metadynamics.py` as the maintained implementation.
+2. Use the notebooks for exploration, plotting, and recipe examples.
+3. If a notebook becomes important for regular use, move the critical workflow into a test or script so it stays synchronized with code changes.
+
 ## Notes
 
 - Bias and CV functions should be JAX-compatible.
