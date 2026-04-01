@@ -43,15 +43,15 @@ class UmbrellaMD:
             umbrella_potential = General_Bias_Calculator(
                 cv_function=self.cv_function,
                 bias_function=self.harmonic_bias,
-                x0=self.x0,
-                k=self.k,
+                static_arg1=self.x0,
+                static_arg2=self.k,
             )
         elif self.len_cvs == 2:
             umbrella_potential = General_Bias_Calculator(
                 cv_function=self.cv_function,
                 bias_function=self.harmonic_bias_2D,
-                x0=self.x0,
-                k=self.k,
+                static_arg1=self.x0,
+                static_arg2=self.k,
             )
         else:
             raise ValueError("Only 1D and 2D CVs are supported")
@@ -64,14 +64,18 @@ class UmbrellaMD:
         self.setup_umbrella_potential()
         
              
-    def harmonic_bias_2D(self,x):
-        dx = x - self.x0
-        return 0.5 * self.k * jnp.sum(dx**2)
+    def harmonic_bias_2D(self,x,x0=None,k=None):
+        center = self.x0 if x0 is None else x0
+        force_constant = self.k if k is None else k
+        dx = x - center
+        return 0.5 * force_constant * jnp.sum(dx**2)
 
 
-    def harmonic_bias(self,x):
-        dx = x - self.x0
-        return 0.5 * self.k * dx**2
+    def harmonic_bias(self,x,x0=None,k=None):
+        center = self.x0 if x0 is None else x0
+        force_constant = self.k if k is None else k
+        dx = x - center
+        return 0.5 * force_constant * jnp.sum(dx**2)
     
     def run(self, N_steps):
         self.md_method.run(N_steps)
